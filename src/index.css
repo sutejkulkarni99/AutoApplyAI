@@ -1,0 +1,255 @@
+@import "tailwindcss";
+
+/* 
+  AutoApply Pro Design System Palette Engine 
+  Derived from Shadcn/ui, Radix Colors, Vercel, and Linear
+*/
+
+/* 🌙 Default Dark Theme: "Zinc Graphite Pro" */
+:root, [data-theme="zinc-dark"] {
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-hover: #1f1f23;
+  --border: #27272a;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-subtle: #312e81;
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* Aliases for flexible utility */
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #121215;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #202024;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(99, 102, 241, 0.35);
+  --badge-bg: rgba(99, 102, 241, 0.16);
+  --badge-text: #a5b4fc;
+  color-scheme: dark;
+}
+
+/* ☀️ Light Theme: "Clean Slate Light" */
+[data-theme="slate-light"], [data-theme="clean-studio"] {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-subtle: #dbeafe;
+  --success: #16a34a;
+  --warning: #ca8a04;
+  --error: #dc2626;
+  --info: #0284c7;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #f1f5f9;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #e2e8f0;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(37, 99, 235, 0.3);
+  --badge-bg: var(--accent-subtle);
+  --badge-text: #1d4ed8;
+  color-scheme: light;
+}
+
+/* 🌙 Dark Alternative: "Slate Obsidian" (Vercel / Linear style) */
+[data-theme="obsidian-dark"], [data-theme="obsidian"] {
+  --background: #0a0a0a;
+  --surface: #171717;
+  --surface-hover: #222222;
+  --border: #262626;
+  --text-primary: #ededed;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-subtle: rgba(59, 130, 246, 0.15);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #121212;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #1f1f1f;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(59, 130, 246, 0.3);
+  --badge-bg: rgba(59, 130, 246, 0.15);
+  --badge-text: #93c5fd;
+  color-scheme: dark;
+}
+
+/* ☀️ Light Alternative: "Warm Paper" (Notion / Craft style) */
+[data-theme="warm-paper"] {
+  --background: #faf9f7;
+  --surface: #ffffff;
+  --surface-hover: #f5f5f4;
+  --border: #e7e5e4;
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+  --accent: #1e3a8a;
+  --accent-hover: #1e40af;
+  --accent-subtle: #dbeafe;
+  --success: #15803d;
+  --warning: #d97706;
+  --error: #b91c1c;
+  --info: #0369a1;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #f5f5f4;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #e7e5e4;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(30, 58, 138, 0.25);
+  --badge-bg: var(--accent-subtle);
+  --badge-text: #1e3a8a;
+  color-scheme: light;
+}
+
+/* Compatibility aliases for previous theme ids */
+[data-theme="vscode-slate"] {
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-hover: #1f1f23;
+  --border: #27272a;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-subtle: #312e81;
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #121215;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #202024;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(99, 102, 241, 0.35);
+  --badge-bg: rgba(99, 102, 241, 0.16);
+  --badge-text: #a5b4fc;
+  color-scheme: dark;
+}
+
+[data-theme="nordic-frost"] {
+  --background: #0f141c;
+  --surface: #18202c;
+  --surface-hover: #1f2938;
+  --border: #283548;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #38bdf8;
+  --accent-hover: #0ea5e9;
+  --accent-subtle: rgba(56, 189, 248, 0.15);
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #38bdf8;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #131a24;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #202b3a;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(56, 189, 248, 0.35);
+  --badge-bg: rgba(56, 189, 248, 0.18);
+  --badge-text: #38bdf8;
+  color-scheme: dark;
+}
+
+[data-theme="tokyo-storm"] {
+  --background: #10121a;
+  --surface: #191c28;
+  --surface-hover: #222637;
+  --border: #2c3248;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-subtle: rgba(129, 140, 248, 0.16);
+  --success: #22c55e;
+  --warning: #eab308;
+  --error: #ef4444;
+  --info: #818cf8;
+
+  --bg-app: var(--background);
+  --bg-card: var(--surface);
+  --bg-subtle: #141621;
+  --bg-hover: var(--surface-hover);
+  --border-app: var(--border);
+  --border-subtle: #23283a;
+  --text-main: var(--text-primary);
+  --text-dim: var(--text-muted);
+  --accent-main: var(--accent);
+  --accent-border: rgba(129, 140, 248, 0.35);
+  --badge-bg: rgba(129, 140, 248, 0.2);
+  --badge-text: #a5b4fc;
+  color-scheme: dark;
+}
+
+/* Smooth theme transitions */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Polished scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

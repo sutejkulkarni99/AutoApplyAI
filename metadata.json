@@ -1,0 +1,6 @@
+{
+  "name": "AutoApply",
+  "description": "Multi-user self-hosted LaTeX job application tailoring system with Universal AI Provider support (Gemini, NVIDIA NIM, Groq, Ollama), RBAC, native PDF compilation, and isolated user profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

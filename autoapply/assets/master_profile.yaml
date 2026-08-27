@@ -1,0 +1,167 @@
+personal:
+  name: "Sutej Kulkarni"
+  title: "Battery Systems | Electronics | Test & Validation"
+  email: "sutejkulkarni99@gmail.com"
+  phone: "+49 155 10397600"
+  address: "Elise-Spaeth-Straße 15, 91058 Erlangen, Germany"
+  linkedin: "https://linkedin.com/in/sutej-kulkarni"
+  portfolio: ""
+  photo_path: "Sutej.png"
+
+summary:
+  technical: "Hands-on electronics engineer with practical experience in battery systems, hardware validation, embedded control, and test setup development. Worked on real systems including a 48V hybrid retrofit, a 72V ultracapacitor-based pack for agricultural drones, and automotive validation benches. Strong interest in lithium-ion batteries, test-driven engineering, and understanding system behaviour through measured data."
+  leadership: "Engineering professional with demonstrated ownership in cross-functional automotive and energy system validation. Proven ability to bridge low-level hardware debugging, firmware testing, and automated software tooling to accelerate product test cycles."
+  general: "Passionate electronics and electromobility engineer specializing in practical battery test engineering, custom PCB debugging, cable harness architecture, and automated test reporting workflows."
+
+skills:
+  - name: "48V hybrid systems & ultracapacitor packs"
+    level: "Advanced"
+    years: 3
+    category: "Battery Systems"
+  - name: "BMS architecture, SOC/SOH analysis & load testing (100A)"
+    level: "Advanced"
+    years: 3
+    category: "Battery Systems"
+  - name: "Lithium-ion cell degradation & cycling profiling"
+    level: "Proficient"
+    years: 2
+    category: "Battery Systems"
+  - name: "Python (Automation, GUI development, Data processing)"
+    level: "Advanced"
+    years: 4
+    category: "Data & Modeling"
+  - name: "MATLAB & Simulink"
+    level: "Proficient"
+    years: 3
+    category: "Data & Modeling"
+  - name: "KiCad PCB Design (2-layer, debug boards, breakout)"
+    level: "Proficient"
+    years: 3
+    category: "Hardware & PCB"
+  - name: "SMD Soldering, rework & prototype assembly"
+    level: "Advanced"
+    years: 3
+    category: "Hardware & PCB"
+  - name: "Cable harness design, build & validation"
+    level: "Advanced"
+    years: 2
+    category: "Hardware & PCB"
+  - name: "Embedded platforms (PSoC 4, ESP32, STM32, Arduino, Raspberry Pi Pico)"
+    level: "Proficient"
+    years: 3
+    category: "Embedded Platforms"
+  - name: "Embedded Linux & Yocto platform basics"
+    level: "Intermediate"
+    years: 1
+    category: "Embedded Platforms"
+  - name: "Lab instrumentation (Oscilloscopes, function generators, multimeters, CAN loggers)"
+    level: "Advanced"
+    years: 4
+    category: "Lab Tools"
+  - name: "Git, Bitbucket & Jira"
+    level: "Proficient"
+    years: 3
+    category: "Workflow Tools"
+
+experience:
+  - company: "Accenture (umlaut systems)"
+    title: "Working Student — Hardware Development (BMW Project)"
+    dates: "Oct 2023 – Mar 2025"
+    location: "Böblingen, Germany"
+    bullets:
+      - "Supported BMW infotainment validation environments with primary focus on cable-harness build, design, and testing for test benches."
+      - "Built and prepared cable plans for test setups based on engineering and customer requirements."
+      - "Designed custom debugging PCBs for signal monitoring and fault tracing, including CAN activity boards and small interface boards."
+      - "Performed hands-on hardware debugging using oscilloscopes, function generators, multimeters, and other lab tools."
+      - "Carried out PCB assembly, SMD soldering, rework, and prototype modifications for validation and internal projects."
+      - "Supported embedded debugging and flashing activities in the test-bench environment."
+      - "Developed a Python-based GUI tool for connector and cable report generation to support structured validation workflows."
+      - "Worked regularly in workshop and laboratory environments and gained practical experience with safe tool handling and prototype work."
+    skills_used: ["Cable Harness Design", "PCB Design (KiCad)", "SMD Soldering", "Oscilloscopes", "Python GUI", "CAN Bus"]
+    highlights: "Designed custom debugging PCBs and automated cable report validation with Python GUI."
+
+  - company: "Trane Technologies"
+    title: "Graduate Engineer Trainee — Embedded Systems"
+    dates: "Feb 2022 – Aug 2022"
+    location: "Bangalore, India"
+    bullets:
+      - "Supported embedded controller development and validation for HVAC systems."
+      - "Gained exposure to Embedded Linux environments, including working with the Yocto platform."
+      - "Assisted in embedded hardware testing, bring-up, and basic development tasks."
+      - "Worked on firmware testing, hardware integration, and debugging of controller behaviour."
+      - "Collaborated in a structured engineering workflow using Bitbucket and Jira."
+    skills_used: ["Embedded C", "Embedded Linux", "Yocto", "Firmware Testing", "Hardware Bring-up"]
+    highlights: "Embedded controller validation and Yocto build workflows."
+
+  - company: "Adarin Engineering Technologies"
+    title: "Intern — Battery Systems & Embedded Engineering"
+    dates: "Sep 2021 – Feb 2022"
+    location: "Bangalore, India"
+    bullets:
+      - "Worked on a 48V hybrid retrofit system where a motorcycle was equipped with an IC generator and battery pack for on-the-go charging."
+      - "Supported the design of low-voltage control logic to start and stop the IC generator based on battery charge thresholds."
+      - "Contributed to a 72V ultracapacitor-based energy system for agricultural drones, including battery-pack assembly and integration with an in-house BMS."
+      - "Conducted high-current load testing up to 100A and supported system performance validation under real use conditions."
+      - "Collected BMS data from client locations, analyzed battery behaviour, and flagged performance issues."
+      - "Gained practical experience in battery testing, control logic, system behaviour, and field-level validation."
+    skills_used: ["48V Hybrid Systems", "Ultracapacitors", "BMS Integration", "100A Load Testing", "Data Analysis"]
+    highlights: "Pack assembly, 100A load testing, and low-voltage control logic for 48V hybrid systems."
+
+education:
+  - school: "FAU Erlangen-Nürnberg, Germany"
+    degree: "M.Sc. Electromobility (ACES)"
+    dates: "2025 – Present"
+    details:
+      - "Focus on battery systems, electric drives, and control of electrified systems."
+      - "Relevant academic areas include Human-Machine Interaction, Robot-Machine Interaction, Machine Learning, and modelling of dynamic systems."
+      - "Strong interest in the system-level integration of energy, control, and intelligent systems."
+
+  - school: "University of Stuttgart, Germany"
+    degree: "M.Sc. Electrical Engineering (5 semesters completed)"
+    dates: "2022 – 2025"
+    details:
+      - "Built strong foundations in embedded systems, sensors, signal processing, and battery modelling."
+      - "Worked with system analysis, electronics-oriented problem solving, and modelling of complex technical systems."
+
+  - school: "Ramaiah University of Applied Sciences, India"
+    degree: "B.Tech Electronics and Communication Engineering"
+    dates: "2017 – 2021"
+    details:
+      - "Undergraduate training in analog and digital electronics, embedded systems, control engineering, and communication systems."
+      - "Bachelor's thesis at ISRO – LEOS: MATLAB-based GUI for LiDAR data acquisition and point-cloud visualization for autonomous systems research."
+
+projects:
+  - name: "Personal Battery Systems Exploration"
+    dates: "Ongoing"
+    bullets:
+      - "Collecting and reviving used lithium-ion cells to study degradation and real-world performance."
+      - "Developing a custom BMS concept with charge/discharge profiling capability."
+      - "Building battery testing workflows to better understand battery behaviour from measured data."
+      - "Exploring data-driven and machine-learning-based approaches for battery performance optimization."
+      - "Planning a custom PCB for integrated battery monitoring and control."
+
+  - name: "Python GUI for KiCad Pin Mapping"
+    dates: "Completed"
+    bullets:
+      - "Built an image-processing-based tool that generates custom pin maps and symbols from connector images."
+      - "Used edge detection and image parsing to automate part of the symbol creation workflow."
+
+certifications:
+  - name: "Automotive High-Voltage Safety Awareness"
+    issuer: "umlaut systems"
+    year: "2024"
+  - name: "Lithium-Ion Battery Storage & Lab Safety"
+    issuer: "FAU Erlangen"
+    year: "2025"
+
+languages:
+  - language: "English"
+    proficiency: "Fluent"
+  - language: "German"
+    proficiency: "A2 (improving; strong technical reading)"
+
+cover_letter_snippets:
+  practical_hardware: "What draws me to your team is the practical, hardware-centric focus. I enjoy working close to real hardware — building, testing, debugging, and understanding why a system behaves the way it does."
+  battery_adarin: "My strongest battery-related experience comes from my work on a 48V hybrid retrofit system and a 72V ultracapacitor drone energy system, where I handled pack assembly, in-house BMS integration, and high-current load testing up to 100A."
+  automotive_validation: "At Accenture (umlaut systems) on BMW validation benches, I designed custom debugging PCBs, built complex cable harnesses, and performed lab instrument diagnostics using oscilloscopes and CAN analyzers."
+  independent_drive: "Outside formal work, I actively test lithium-ion cells, study battery degradation mechanisms, and develop custom BMS prototypes with automated data logging in Python."

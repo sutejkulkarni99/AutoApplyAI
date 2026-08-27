@@ -1,0 +1,51 @@
+\documentclass[a4paper,10.5pt]{article}
+
+\usepackage[margin=1.8cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{setspace}
+
+\definecolor{accent}{RGB}{0,80,155}
+
+\setlength{\parindent}{0pt}
+\setstretch{1.12}
+\pagestyle{empty}
+
+\begin{document}
+
+\vspace*{-0.45cm}
+
+{\Large\bfseries {{ personal.name }}}\\[4pt]
+{{ personal.address | replace(", ", "\\\\\n") }}\\
+{{ personal.phone }}\\
+\href{mailto:{{ personal.email }}}{ {{- personal.email -}} }
+
+\vspace{0.8cm}
+
+{{ recipient_company }}\\
+{{ recipient_location }}
+
+\vspace{0.7cm}
+
+{\color{accent}\large\bfseries {{ subject_line }}}
+
+\vspace{0.7cm}
+
+{{ salutation | default("Dear Hiring Team,") }}
+
+{{ body_paragraph_1 }}
+
+{{ body_paragraph_2 }}
+
+{{ body_paragraph_3 }}
+
+{{ closing | default("Thank you for your time and consideration. I would be very pleased to introduce myself in a personal interview.") }}
+
+\vspace{0.8cm}
+
+Best regards,\\[4pt]
+{{ personal.name }}
+
+\end{document}

@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  autoapply:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autoapply_app
+    restart: unless-stopped
+    ports:
+      # Map host port 8080 (or your custom port) to container port 3000
+      # Bound to 0.0.0.0 so Tailscale can route to it
+      - "${AUTOAPPLY_PORT:-8080}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/app/data
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_AI_STUDIO_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      # Isolated persistent volume: stores SQLite / JSON tracker records, master_profile.yaml, and generated PDFs
+      - autoapply_data:/app/data
+    networks:
+      # Completely isolated bridge network (will not collide with any other homelab container)
+      - autoapply_net
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+
+volumes:
+  autoapply_data:
+    name: autoapply_persistent_data
+
+networks:
+  autoapply_net:
+    name: autoapply_isolated_network
+    driver: bridge
