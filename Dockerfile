@@ -6,8 +6,10 @@ FROM node:22-bookworm-slim AS base
 # Install TeX Live packages for headless LaTeX to PDF compilation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-base \
+    texlive-latex-recommended \
     texlive-latex-extra \
     texlive-fonts-recommended \
+    texlive-lang-german \
     latexmk \
     ca-certificates \
     curl \

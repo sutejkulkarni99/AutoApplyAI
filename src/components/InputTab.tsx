@@ -12,6 +12,7 @@ import {
   FileCheck2,
   RefreshCw,
   FileText,
+  Globe,
 } from "lucide-react";
 import { PipelineResults, DocumentLanguage } from "../types";
 import { LanguageToggle } from "./LanguageToggle";
@@ -40,6 +41,55 @@ export function InputTab({
   const [language, setLanguage] = useState<DocumentLanguage>("en");
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(0);
+  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+
+  const [scrapeSuccessInfo, setScrapeSuccessInfo] = useState<{ detectedLang?: string; source?: string } | null>(null);
+
+  const handleFetchJobFromUrl = async () => {
+    if (!jobUrl || !jobUrl.trim()) {
+      setError("Please enter a Job Posting URL first.");
+      return;
+    }
+
+    setError(null);
+    setScrapeSuccessInfo(null);
+    setIsFetchingUrl(true);
+
+    try {
+      const response = await fetch("/api/fetch-job", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: jobUrl, language }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch job posting from URL.");
+      }
+
+      if (data.job_description) {
+        setJobDescription(data.job_description);
+      }
+      if (data.title) {
+        setTitle(data.title);
+      }
+      if (data.company) {
+        setCompany(data.company);
+      }
+
+      setScrapeSuccessInfo({
+        detectedLang: data.detected_language === "de" ? "German" : "English",
+        source: data.source,
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to scrape job content from URL. Please copy & paste manually.");
+    } finally {
+      setIsFetchingUrl(false);
+    }
+  };
 
   const handleRunPipeline = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,6 +260,24 @@ export function InputTab({
         </div>
       )}
 
+      {/* Scrape Success Alert */}
+      {scrapeSuccessInfo && (
+        <div className="p-4 rounded-xl bg-[var(--success)]/10 border border-[var(--success)]/30 text-[var(--text-primary)] text-xs flex items-start gap-3">
+          <Globe className="w-4 h-4 text-[var(--success)] shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-semibold text-[var(--success)] flex items-center gap-2">
+              <span>Job Posting Extracted & Cleaned Successfully</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--border)] font-mono text-[var(--text-secondary)] font-normal">
+                Scraped Language: {scrapeSuccessInfo.detectedLang}
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+              Job details extracted. Application documents will be tailored in your selected output language (<strong>{language === "de" ? "German 🇩🇪" : "English 🇬🇧"}</strong>).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Pipeline Progress Indicator */}
       {isRunningPipeline && (
         <div className="bg-[var(--surface)] border border-[var(--accent)] rounded-2xl p-5 shadow-lg space-y-4 animate-in fade-in duration-200">
@@ -301,17 +369,43 @@ export function InputTab({
             />
 
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
-                <LinkIcon className="w-3.5 h-3.5 text-[var(--accent)]" />
-                Job Posting URL (Optional)
+              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <LinkIcon className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  Job Posting URL (Scrape & Auto-Fill)
+                </span>
               </label>
-              <input
-                type="url"
-                value={jobUrl}
-                onChange={(e) => setJobUrl(e.target.value)}
-                placeholder="https://linkedin.com/jobs/view/..."
-                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-3.5 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={jobUrl}
+                  onChange={(e) => setJobUrl(e.target.value)}
+                  placeholder="https://linkedin.com/jobs/view/... or any career link"
+                  className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-xl px-3.5 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
+                />
+                <button
+                  type="button"
+                  onClick={handleFetchJobFromUrl}
+                  disabled={isFetchingUrl || !jobUrl.trim()}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer ${
+                    isFetchingUrl || !jobUrl.trim()
+                      ? "bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)] cursor-not-allowed opacity-70"
+                      : "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.98]"
+                  }`}
+                >
+                  {isFetchingUrl ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Scraping...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Fetch Job Details</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -323,15 +417,28 @@ export function InputTab({
               <Layers className="w-3.5 h-3.5 text-[var(--accent)]" />
               <span>Job Description & Requirements *</span>
             </label>
-            <span className="text-[10px] font-mono text-[var(--text-muted)]">
-              {jobDescription.length} characters
-            </span>
+            <div className="flex items-center gap-3">
+              {jobUrl.trim() && (
+                <button
+                  type="button"
+                  onClick={handleFetchJobFromUrl}
+                  disabled={isFetchingUrl}
+                  className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 font-medium"
+                >
+                  <Globe className="w-3 h-3" />
+                  <span>Fetch from URL</span>
+                </button>
+              )}
+              <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                {jobDescription.length} characters
+              </span>
+            </div>
           </div>
           <textarea
             rows={11}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            placeholder="Paste the full job posting, responsibilities, requirements, and tech stack here..."
+            placeholder="Paste the job posting here, OR paste a URL above and click 'Fetch Job Details' to extract it automatically..."
             className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] font-mono leading-relaxed focus:outline-none focus:border-[var(--accent)] transition resize-y"
           />
         </div>

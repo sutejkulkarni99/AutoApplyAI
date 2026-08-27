@@ -451,6 +451,260 @@ app.post("/api/profile", authMiddleware, (req: AuthenticatedRequest, res: Respon
 });
 
 // ==========================================
+// JOB URL WEB SCRAPER ENDPOINT (AGGRESSIVE BILINGUAL)
+// ==========================================
+
+app.post("/api/fetch-job", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  let { url, language = "en" } = req.body;
+  if (!url || typeof url !== "string" || !url.trim()) {
+    return res.status(400).json({ error: "Job posting URL is required." });
+  }
+
+  url = url.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
+  }
+
+  try {
+    let rawContent = "";
+    let extractedTitle = "";
+    let extractedCompany = "";
+    let fetchSource = "none";
+    let jsonLdFound = false;
+
+    // Helper: Extract JSON-LD JobPosting schema if present
+    const parseJsonLd = (htmlText: string) => {
+      try {
+        const jsonLdMatches = htmlText.match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+        if (jsonLdMatches) {
+          for (const match of jsonLdMatches) {
+            const cleanJsonStr = match.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, "").trim();
+            try {
+              const data = JSON.parse(cleanJsonStr);
+              const items = Array.isArray(data) ? data : [data, ...(data["@graph"] || [])];
+              for (const item of items) {
+                if (item && (item["@type"] === "JobPosting" || item["@type"]?.includes("JobPosting"))) {
+                  if (item.title) extractedTitle = item.title;
+                  if (item.hiringOrganization?.name) extractedCompany = item.hiringOrganization.name;
+                  if (item.description) {
+                    jsonLdFound = true;
+                    return item.description;
+                  }
+                }
+              }
+            } catch {
+              // Ignore single JSON-LD block syntax errors
+            }
+          }
+        }
+      } catch {
+        // Ignore regex failures
+      }
+      return null;
+    };
+
+    // TIER 1: Direct Fetch with browser headers & JSON-LD / HTML parsing
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+      const directRes = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "de-DE,de;q=0.9,en-US,en;q=0.8,de-AT,de-CH",
+          "Cache-Control": "no-cache",
+          "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124"',
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (directRes.ok) {
+        const html = await directRes.text();
+        const jsonLdDesc = parseJsonLd(html);
+        if (jsonLdDesc) {
+          rawContent = jsonLdDesc;
+          fetchSource = "direct_json_ld";
+        } else if (html && html.length > 300) {
+          rawContent = html;
+          fetchSource = "direct_html";
+        }
+      }
+    } catch (e) {
+      console.warn("Direct fetch failed or timed out:", e);
+    }
+
+    // TIER 2: Jina AI Reader API fallback (Translates complex pages into markdown)
+    if (!rawContent || rawContent.length < 150) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
+        const jinaRes = await fetch(jinaUrl, {
+          method: "GET",
+          headers: {
+            "Accept": "text/plain, text/markdown, */*",
+            "X-No-Cache": "true",
+            "X-Target-Selector": "main, article, .job-description, #job-details, .description, .posting-requirements, .job-posting, [data-automation='jobDescription'], .job-details-content",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "de-DE,de;q=0.9,en-US,en;q=0.8",
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (jinaRes.ok) {
+          const jinaText = await jinaRes.text();
+          if (jinaText && jinaText.length > 100) {
+            rawContent = jinaText;
+            fetchSource = "jina_reader";
+          }
+        }
+      } catch (jinaErr) {
+        console.warn("Jina reader fallback error:", jinaErr);
+      }
+    }
+
+    // TIER 3: CORS Proxy Fallback if blocked or empty
+    if (!rawContent || rawContent.length < 100) {
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const proxyRes = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (proxyRes.ok) {
+          const proxyHtml = await proxyRes.text();
+          const jsonLdDesc = parseJsonLd(proxyHtml);
+          if (jsonLdDesc) {
+            rawContent = jsonLdDesc;
+            fetchSource = "proxy_json_ld";
+          } else if (proxyHtml.length > 200) {
+            rawContent = proxyHtml;
+            fetchSource = "cors_proxy";
+          }
+        }
+      } catch (proxyErr) {
+        console.warn("CORS proxy error:", proxyErr);
+      }
+    }
+
+    if (!rawContent || rawContent.length < 30) {
+      return res.status(400).json({
+        error: "Could not extract content from the URL. The job board may require login or block automated scrapers. Please copy and paste the job description text manually.",
+      });
+    }
+
+    // TIER 4: LLM BILINGUAL CONTENT PARSING & CLEANUP
+    const userId = req.user!.userId;
+    const userSettings = getUserSettings(userId);
+
+    // Initial HTML clean-up if rawContent is raw HTML
+    let cleanedText = rawContent;
+    if (rawContent.includes("<") && rawContent.includes(">")) {
+      cleanedText = rawContent
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+        .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, "")
+        .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, "")
+        .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, "")
+        .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, "")
+        .replace(/<(?:p|div|br|li|h[1-6])[^>]*>/gi, "\n")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .replace(/\n\s*\n/g, "\n\n")
+        .trim();
+    }
+
+    let finalTitle = extractedTitle;
+    let finalCompany = extractedCompany;
+    let formattedJobDesc = cleanedText;
+    let detectedLanguage = "en";
+
+    // Call Universal LLM to clean up the scraped job text, detect language, and format responsibilities & requirements
+    try {
+      const isGermanUI = language === "de";
+      const extractionPrompt = `You are a high-speed German & English recruitment scraper parser.
+Target URL: ${url}
+Title hint: ${extractedTitle || "None"}
+Company hint: ${extractedCompany || "None"}
+User UI Language Preference: ${isGermanUI ? "German (Deutsch)" : "English"}
+
+Raw Scraped Text (first 4000 chars):
+${cleanedText.slice(0, 4000)}
+
+INSTRUCTIONS:
+1. Extract the exact Job Title (e.g. "Senior Backend Engineer" or "Senior Softwareentwickler").
+2. Extract the exact Company Name (e.g. "BMW Group", "Siemens").
+3. Detect primary language of the job posting ('de' for German, 'en' for English).
+4. Format a comprehensive, clean, structured Job Description in Markdown.
+   - Include: About the Role, Key Responsibilities, Requirements & Tech Stack, Qualifications, Language Requirements.
+   - Strip out website navigation links, cookie consent prompts, login screens, or unrelated footer copy.
+   - Retain all technical skills, years of experience, tools, frameworks, and requirements verbatim.
+
+Return JSON:
+{
+  "title": string,
+  "company": string,
+  "detected_language": "de" | "en",
+  "job_description": string
+}`;
+
+      const aiParse = await executeUniversalLLM({
+        prompt: extractionPrompt,
+        systemInstruction: "You are an expert recruitment parser extracting job postings accurately in English or German.",
+        settings: userSettings,
+        jsonMode: true,
+      });
+
+      if (aiParse.data) {
+        if (aiParse.data.title && aiParse.data.title !== "Unknown") {
+          finalTitle = aiParse.data.title;
+        }
+        if (aiParse.data.company && aiParse.data.company !== "Unknown") {
+          finalCompany = aiParse.data.company;
+        }
+        if (aiParse.data.detected_language) {
+          detectedLanguage = aiParse.data.detected_language;
+        }
+        if (aiParse.data.job_description && aiParse.data.job_description.length > 50) {
+          formattedJobDesc = aiParse.data.job_description;
+        }
+      }
+    } catch (llmErr) {
+      console.warn("LLM job text formatting failed, using raw cleaned text:", llmErr);
+    }
+
+    res.json({
+      success: true,
+      url,
+      title: finalTitle || "",
+      company: finalCompany || "",
+      job_description: formattedJobDesc,
+      detected_language: detectedLanguage,
+      source: fetchSource,
+    });
+  } catch (err: any) {
+    console.error("Error scraping job URL:", err);
+    res.status(500).json({
+      error: `Failed to scrape job posting (${err.message || "Network Error"}). Please copy & paste the job description manually.`,
+    });
+  }
+});
+
+// ==========================================
 // UNIVERSAL 3-PASS AI PIPELINE ROUTES
 // ==========================================
 

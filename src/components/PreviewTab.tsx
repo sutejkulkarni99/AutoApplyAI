@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FileText,
   Download,
@@ -11,12 +11,12 @@ import {
   Code2,
   Eye,
   FileCode2,
-  Sparkles,
   Layers,
   Globe2,
   FileDown,
   PackageCheck,
-  ArrowRight,
+  Play,
+  ExternalLink,
 } from "lucide-react";
 import { PipelineResults } from "../types";
 
@@ -40,6 +40,29 @@ export function PreviewTab({
   const [copied, setCopied] = useState(false);
   const [isCompilingPdf, setIsCompilingPdf] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
+
+  // Editable TeX sources
+  const [texCv, setTexCv] = useState<string>("");
+  const [texCover, setTexCover] = useState<string>("");
+
+  // Compiled PDF Object URLs
+  const [pdfCvUrl, setPdfCvUrl] = useState<string | null>(null);
+  const [pdfCoverUrl, setPdfCoverUrl] = useState<string | null>(null);
+  const [compileStatusMsg, setCompileStatusMsg] = useState<string | null>(null);
+
+  // Sync state when pipelineData updates
+  useEffect(() => {
+    if (pipelineData) {
+      const initialCv = pipelineData.compiled_cv_tex || "";
+      const initialCover = pipelineData.compiled_cover_tex || "";
+      setTexCv(initialCv);
+      setTexCover(initialCover);
+
+      // Auto compile CV & Cover on initial load
+      if (initialCv) compileLaTeXDoc("cv", initialCv);
+      if (initialCover) compileLaTeXDoc("cover", initialCover);
+    }
+  }, [pipelineData]);
 
   if (!pipelineData) {
     return (
@@ -66,8 +89,64 @@ export function PreviewTab({
   const matchedCount = Math.max(0, totalReqs - missingCount);
   const matchPct = totalReqs > 0 ? Math.round((matchedCount / totalReqs) * 100) : 94;
 
-  // Active LaTeX source
-  const currentTex = activeDoc === "cv" ? pipelineData.compiled_cv_tex || "" : pipelineData.compiled_cover_tex || "";
+  const currentTex = activeDoc === "cv" ? texCv : texCover;
+  const setCurrentTex = (val: string) => {
+    if (activeDoc === "cv") setTexCv(val);
+    else setTexCover(val);
+  };
+
+  const currentPdfUrl = activeDoc === "cv" ? pdfCvUrl : pdfCoverUrl;
+
+  // Server-side LaTeX compilation runner
+  const compileLaTeXDoc = async (docType: "cv" | "cover", sourceTexOverride?: string) => {
+    const texToCompile = sourceTexOverride ?? (docType === "cv" ? texCv : texCover);
+    if (!texToCompile || !texToCompile.trim()) return;
+
+    setIsCompilingPdf(true);
+    setCompileError(null);
+    setCompileStatusMsg("Compiling LaTeX to PDF via Server...");
+
+    const prefix = docType === "cv" ? (isGerman ? "Lebenslauf" : "CV") : (isGerman ? "Anschreiben" : "Cover_Letter");
+    const filename = `${prefix}_${company.replace(/\s+/g, "_")}`;
+
+    try {
+      const res = await fetch("/api/latex/compile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          latex_source: texToCompile,
+          filename,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "PDF compilation failed");
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      if (docType === "cv") {
+        if (pdfCvUrl) URL.revokeObjectURL(pdfCvUrl);
+        setPdfCvUrl(objectUrl);
+      } else {
+        if (pdfCoverUrl) URL.revokeObjectURL(pdfCoverUrl);
+        setPdfCoverUrl(objectUrl);
+      }
+
+      setCompileStatusMsg("PDF compiled successfully!");
+      setTimeout(() => setCompileStatusMsg(null), 3000);
+    } catch (err: any) {
+      console.error("PDF Compile Error:", err);
+      setCompileError(err.message || "Compilation failed. Check LaTeX syntax.");
+    } finally {
+      setIsCompilingPdf(false);
+    }
+  };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(currentTex);
@@ -88,47 +167,28 @@ export function PreviewTab({
   };
 
   const handleDownloadPdf = async () => {
-    setIsCompilingPdf(true);
-    setCompileError(null);
-    const prefix = activeDoc === "cv" ? (isGerman ? "Lebenslauf" : "CV") : (isGerman ? "Anschreiben" : "Cover_Letter");
-    const filename = `${prefix}_${company.replace(/\s+/g, "_")}`;
-
-    try {
-      const res = await fetch("/api/latex/compile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          latex_source: currentTex,
-          filename,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || "PDF compilation failed");
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+    if (currentPdfUrl) {
+      const prefix = activeDoc === "cv" ? (isGerman ? "Lebenslauf" : "CV") : (isGerman ? "Anschreiben" : "Cover_Letter");
+      const filename = `${prefix}_${company.replace(/\s+/g, "_")}.pdf`;
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `${filename}.pdf`;
+      a.href = currentPdfUrl;
+      a.download = filename;
       a.click();
-      URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setCompileError(err.message || "Could not compile PDF. Downloading .tex source file instead.");
-      handleDownloadTex();
-    } finally {
-      setIsCompilingPdf(false);
+    } else {
+      await compileLaTeXDoc(activeDoc);
     }
   };
 
   const handleDownloadBoth = async () => {
     handleDownloadTex();
     await handleDownloadPdf();
+  };
+
+  const handleKeyDownTex = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      compileLaTeXDoc(activeDoc);
+    }
   };
 
   return (
@@ -248,6 +308,13 @@ export function PreviewTab({
         </div>
       )}
 
+      {compileStatusMsg && (
+        <div className="p-2.5 bg-[var(--accent)]/10 border border-[var(--accent)]/30 rounded-xl text-[var(--text-primary)] text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-[var(--accent)] shrink-0" />
+          <span>{compileStatusMsg}</span>
+        </div>
+      )}
+
       {/* Main Document Controls Bar */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
         {/* Document Selector */}
@@ -262,7 +329,7 @@ export function PreviewTab({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>{isGerman ? "Lebenslauf (2 Seiten DIN)" : "Curriculum Vitae (2-Page)"}</span>
+            <span>{isGerman ? "Lebenslauf (DIN A4)" : "Curriculum Vitae (CV)"}</span>
           </button>
           <button
             type="button"
@@ -274,7 +341,7 @@ export function PreviewTab({
             }`}
           >
             <FileCode2 className="w-3.5 h-3.5" />
-            <span>{isGerman ? "Anschreiben (1 Seite DIN 5008)" : "Cover Letter (1-Page)"}</span>
+            <span>{isGerman ? "Anschreiben (DIN 5008)" : "Cover Letter"}</span>
           </button>
         </div>
 
@@ -293,7 +360,7 @@ export function PreviewTab({
               title="Side-by-Side Split Workspace"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Split</span>
+              <span className="hidden sm:inline">Split Workspace</span>
             </button>
             <button
               type="button"
@@ -303,10 +370,10 @@ export function PreviewTab({
                   ? "bg-[var(--surface)] text-[var(--accent)] font-semibold shadow-xs"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }`}
-              title="Rendered Document View"
+              title="Full PDF Preview"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Preview</span>
+              <span className="hidden sm:inline">PDF Preview</span>
             </button>
             <button
               type="button"
@@ -316,10 +383,10 @@ export function PreviewTab({
                   ? "bg-[var(--surface)] text-[var(--accent)] font-semibold shadow-xs"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               }`}
-              title="LaTeX Source Code"
+              title="LaTeX Source Code Editor"
             >
               <Code2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">LaTeX</span>
+              <span className="hidden sm:inline">TeX Code</span>
             </button>
           </div>
 
@@ -350,11 +417,11 @@ export function PreviewTab({
             className="bg-[var(--accent)] hover:opacity-90 text-white font-medium text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95"
           >
             {isCompilingPdf ? (
-              <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Download className="w-3.5 h-3.5" />
             )}
-            <span>{isCompilingPdf ? "Compiling PDF..." : "Download PDF"}</span>
+            <span>{isCompilingPdf ? "Compiling..." : "Download PDF"}</span>
           </button>
 
           {/* Download Both */}
@@ -382,200 +449,147 @@ export function PreviewTab({
       </div>
 
       {/* Main Workspace Layout */}
-      <div className="min-h-[600px]">
+      <div className="min-h-[640px]">
         {viewMode === "split" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-            {/* Left: LaTeX Code Editor */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm flex flex-col">
-              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] border-b border-[var(--border)] pb-2.5 mb-3">
+            {/* Left: Editable LaTeX Code Editor */}
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm flex flex-col space-y-3">
+              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] border-b border-[var(--border)] pb-2.5">
                 <span className="font-mono flex items-center gap-1.5 text-[var(--text-primary)] font-semibold">
                   <Code2 className="w-4 h-4 text-[var(--accent)]" />
-                  LaTeX Source Code ({activeDoc.toUpperCase()})
+                  Editable LaTeX Source ({activeDoc.toUpperCase()})
                 </span>
-                <span className="text-[11px] font-mono text-[var(--text-muted)]">
-                  {currentTex.split("\n").length} lines
-                </span>
+                <button
+                  type="button"
+                  onClick={() => compileLaTeXDoc(activeDoc)}
+                  disabled={isCompilingPdf}
+                  className="bg-[var(--accent)] hover:opacity-90 text-white font-medium text-xs px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                  title="Recompile edited LaTeX source code to updated PDF (Ctrl+Enter)"
+                >
+                  {isCompilingPdf ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3 fill-current" />
+                  )}
+                  <span>Compile PDF</span>
+                </button>
               </div>
+
               <textarea
-                readOnly
                 value={currentTex}
+                onChange={(e) => setCurrentTex(e.target.value)}
+                onKeyDown={handleKeyDownTex}
                 rows={28}
-                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 font-mono text-[11px] text-[var(--text-primary)] focus:outline-none leading-relaxed resize-y"
+                placeholder="Type or paste custom LaTeX code here... Press Ctrl+Enter to compile"
+                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 font-mono text-[11px] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] leading-relaxed resize-y"
               />
+              <div className="text-[10px] text-[var(--text-muted)] font-mono flex items-center justify-between px-1">
+                <span>Tip: Edit TeX directly above and press <strong>Ctrl+Enter</strong> or click <strong>Compile PDF</strong></span>
+                <span>{currentTex.split("\n").length} lines</span>
+              </div>
             </div>
 
-            {/* Right: Simulated A4 Document Sheet */}
-            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm flex flex-col">
-              <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] border-b border-[var(--border)] pb-2.5 mb-3">
+            {/* Right: Actual Compiled PDF Preview Frame */}
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm flex flex-col space-y-3">
+              <div className="flex items-center justify-between text-xs border-b border-[var(--border)] pb-2.5">
                 <span className="flex items-center gap-1.5 font-semibold text-[var(--text-primary)]">
                   <FileText className="w-4 h-4 text-[var(--accent)]" />
-                  Simulated A4 Document Flow ({isGerman ? "DIN A4" : "A4 Standard"})
+                  Accurate Compiled PDF Preview
                 </span>
-                <span className="text-[11px] text-[var(--success)] font-mono font-medium">
-                  {activeDoc === "cv" ? "Strict 2-Page Envelope" : "Strict 1-Page Envelope"}
-                </span>
-              </div>
-
-              {/* Rendered White Sheet */}
-              <div className="bg-white text-slate-900 rounded-xl p-8 shadow-sm space-y-6 font-serif border border-slate-200 overflow-y-auto max-h-[640px]">
-                {activeDoc === "cv" ? (
-                  <div className="space-y-5 text-sm leading-relaxed">
-                    <div className="text-center border-b border-slate-300 pb-4">
-                      <h1 className="text-2xl font-bold text-[#1b2a4a] tracking-tight">
-                        Candidate Profile
-                      </h1>
-                      <p className="text-sm font-semibold text-[#2b547e] mt-0.5">
-                        {pass_2?.dynamic_header_title || role}
-                      </p>
-                      <p className="text-xs text-slate-600 mt-1 font-sans">
-                        Email: candidate@example.com • Tel: +49 • Germany
-                      </p>
-                    </div>
-
-                    <div>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                        {isGerman ? "Kurzprofil & Expertise" : "Professional Summary"}
-                      </h2>
-                      <p className="text-xs text-slate-700 mt-2 font-sans leading-normal">
-                        {pass_2?.professional_summary || "Tailored professional profile summary."}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                        {isGerman ? "Berufliche Erfahrung" : "Experience"}
-                      </h2>
-                      <div className="text-xs text-slate-700 mt-2 font-mono whitespace-pre-wrap leading-relaxed">
-                        {pass_2?.experience_sections || "% Experience entries compiled"}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                        {isGerman ? "Fachliche & Technische Kompetenzen" : "Technical & Core Skills"}
-                      </h2>
-                      <div className="text-xs text-slate-700 mt-2 font-mono whitespace-pre-wrap leading-relaxed">
-                        {pass_2?.skills_section || "% Skills selected"}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                        {isGerman ? "Ausbildung & Qualifikationen" : "Education & Qualifications"}
-                      </h2>
-                      <div className="text-xs text-slate-700 mt-2 font-mono whitespace-pre-wrap leading-relaxed">
-                        {pass_2?.education_section || "% Education details"}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4 text-sm font-sans leading-relaxed text-slate-800">
-                    <div className="border-b border-slate-200 pb-3">
-                      <span className="font-bold text-[#1b2a4a] block text-base">Candidate Name</span>
-                      <span className="text-xs text-slate-600">Munich, Germany • candidate@example.com</span>
-                    </div>
-
-                    <div className="text-xs space-y-0.5">
-                      <p className="font-bold text-slate-900">{pass_3?.recipient_company || company}</p>
-                      <p className="text-slate-600">{pass_3?.recipient_location || "Headquarters"}</p>
-                    </div>
-
-                    <div className="pt-2">
-                      <p className="text-xs font-bold text-[#1b2a4a]">
-                        {isGerman ? "Betreff:" : "Subject:"} {pass_3?.subject_line || `Application for ${role}`}
-                      </p>
-                    </div>
-
-                    <p className="text-xs font-semibold">{pass_3?.salutation || (isGerman ? "Sehr geehrte Damen und Herren," : "Dear Hiring Manager,")}</p>
-
-                    <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_1}</p>
-                    <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_2}</p>
-                    <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_3}</p>
-
-                    <div className="pt-4">
-                      <p className="text-xs text-slate-800 font-semibold">{pass_3?.closing || (isGerman ? "Mit freundlichen Grüßen," : "Sincerely,")}</p>
-                      <p className="text-xs font-bold text-[#1b2a4a] mt-2">Candidate Name</p>
-                    </div>
-                  </div>
+                {currentPdfUrl && (
+                  <a
+                    href={currentPdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Open PDF in New Tab</span>
+                  </a>
                 )}
               </div>
+
+              {currentPdfUrl ? (
+                <iframe
+                  src={`${currentPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+                  className="w-full h-[640px] rounded-xl border border-[var(--border)] shadow-sm bg-slate-800"
+                  title="Compiled Document PDF Preview"
+                />
+              ) : (
+                <div className="h-[640px] flex flex-col items-center justify-center p-8 bg-[var(--background)] rounded-xl border border-dashed border-[var(--border)] text-center space-y-3">
+                  <RefreshCw className="w-8 h-8 text-[var(--accent)] animate-spin" />
+                  <p className="text-xs text-[var(--text-primary)] font-medium">
+                    Compiling LaTeX to high-resolution PDF...
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] max-w-xs">
+                    Please wait a moment while the server compiles your document.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         ) : viewMode === "latex" ? (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] border-b border-[var(--border)] pb-2">
-              <span className="font-mono font-semibold text-[var(--text-primary)]">LaTeX Source Code ({activeDoc.toUpperCase()})</span>
-              <span className="text-[11px] text-[var(--text-muted)]">Ready for pdflatex or Overleaf</span>
+            <div className="flex items-center justify-between text-xs border-b border-[var(--border)] pb-2.5">
+              <span className="font-mono font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Code2 className="w-4 h-4 text-[var(--accent)]" />
+                LaTeX Source Editor ({activeDoc.toUpperCase()})
+              </span>
+              <button
+                type="button"
+                onClick={() => compileLaTeXDoc(activeDoc)}
+                disabled={isCompilingPdf}
+                className="bg-[var(--accent)] hover:opacity-90 text-white font-medium text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                {isCompilingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                <span>Compile PDF (Ctrl+Enter)</span>
+              </button>
             </div>
             <textarea
-              readOnly
               value={currentTex}
-              rows={26}
-              className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 font-mono text-xs text-[var(--text-primary)] focus:outline-none leading-relaxed"
+              onChange={(e) => setCurrentTex(e.target.value)}
+              onKeyDown={handleKeyDownTex}
+              rows={28}
+              className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 font-mono text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent)] leading-relaxed"
             />
           </div>
         ) : (
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex justify-center">
-            <div className="w-full max-w-3xl bg-white text-slate-900 rounded-xl p-10 shadow-lg space-y-6 font-serif border border-slate-200">
-              {activeDoc === "cv" ? (
-                <div className="space-y-5 text-sm leading-relaxed">
-                  <div className="text-center border-b border-slate-300 pb-4">
-                    <h1 className="text-2xl font-bold text-[#1b2a4a] tracking-tight">Candidate Profile</h1>
-                    <p className="text-sm font-semibold text-[#2b547e] mt-0.5">{pass_2?.dynamic_header_title || role}</p>
-                    <p className="text-xs text-slate-600 mt-1 font-sans">Email: candidate@example.com • Tel: +49 • Germany</p>
-                  </div>
-                  <div>
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                      {isGerman ? "Kurzprofil & Expertise" : "Professional Summary"}
-                    </h2>
-                    <p className="text-xs text-slate-700 mt-2 font-sans leading-normal">{pass_2?.professional_summary}</p>
-                  </div>
-                  <div>
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                      {isGerman ? "Berufliche Erfahrung" : "Experience"}
-                    </h2>
-                    <div className="text-xs text-slate-700 mt-2 font-mono whitespace-pre-wrap leading-relaxed">
-                      {pass_2?.experience_sections}
-                    </div>
-                  </div>
-                  <div>
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-[#1b2a4a] border-b border-slate-300 pb-1 font-sans">
-                      {isGerman ? "Fachliche & Technische Kompetenzen" : "Technical & Core Skills"}
-                    </h2>
-                    <div className="text-xs text-slate-700 mt-2 font-mono whitespace-pre-wrap leading-relaxed">
-                      {pass_2?.skills_section}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 text-sm font-sans leading-relaxed text-slate-800">
-                  <div className="border-b border-slate-200 pb-3">
-                    <span className="font-bold text-[#1b2a4a] block text-base">Candidate Name</span>
-                    <span className="text-xs text-slate-600">Munich, Germany • candidate@example.com</span>
-                  </div>
-                  <div className="text-xs space-y-0.5">
-                    <p className="font-bold text-slate-900">{pass_3?.recipient_company || company}</p>
-                    <p className="text-slate-600">{pass_3?.recipient_location || "Headquarters"}</p>
-                  </div>
-                  <div className="pt-2">
-                    <p className="text-xs font-bold text-[#1b2a4a]">
-                      {isGerman ? "Betreff:" : "Subject:"} {pass_3?.subject_line || `Application for ${role}`}
-                    </p>
-                  </div>
-                  <p className="text-xs font-semibold">{pass_3?.salutation || (isGerman ? "Sehr geehrte Damen und Herren," : "Dear Hiring Manager,")}</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_1}</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_2}</p>
-                  <p className="text-xs text-slate-700 leading-relaxed">{pass_3?.body_paragraph_3}</p>
-                  <div className="pt-4">
-                    <p className="text-xs text-slate-800 font-semibold">{pass_3?.closing || (isGerman ? "Mit freundlichen Grüßen," : "Sincerely,")}</p>
-                    <p className="text-xs font-bold text-[#1b2a4a] mt-2">Candidate Name</p>
-                  </div>
-                </div>
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between text-xs border-b border-[var(--border)] pb-2.5">
+              <span className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Eye className="w-4 h-4 text-[var(--accent)]" />
+                Full Page Compiled PDF Viewer
+              </span>
+              {currentPdfUrl && (
+                <a
+                  href={currentPdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 font-medium"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open PDF in New Tab</span>
+                </a>
               )}
             </div>
+            {currentPdfUrl ? (
+              <iframe
+                src={`${currentPdfUrl}#toolbar=1&navpanes=0&view=FitH`}
+                className="w-full h-[750px] rounded-xl border border-[var(--border)] shadow-sm bg-slate-800"
+                title="Full Screen PDF View"
+              />
+            ) : (
+              <div className="h-[600px] flex flex-col items-center justify-center p-8 bg-[var(--background)] rounded-xl border border-dashed border-[var(--border)] text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-[var(--accent)] animate-spin" />
+                <p className="text-xs text-[var(--text-primary)] font-medium">
+                  Compiling LaTeX to PDF...
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
