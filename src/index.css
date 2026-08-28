@@ -2,39 +2,44 @@
 
 /* 
   AutoApply Pro Design System Palette Engine 
-  Derived from Shadcn/ui, Radix Colors, Vercel, and Linear
+  Google AI Studio Design Language & Multi-Theme Architecture
 */
 
-/* 🌙 Default Dark Theme: "Zinc Graphite Pro" */
-:root, [data-theme="zinc-dark"] {
-  --background: #09090b;
-  --surface: #18181b;
-  --surface-hover: #1f1f23;
-  --border: #27272a;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-subtle: #312e81;
-  --success: #22c55e;
-  --warning: #eab308;
-  --error: #ef4444;
-  --info: #3b82f6;
+/* 🌌 Flagship Theme: "Google AI Studio Dark" */
+:root, [data-theme="google-ai-studio"], [data-theme="zinc-dark"] {
+  --background: #131314;
+  --surface: #1e1f20;
+  --surface-hover: #282a2c;
+  --border: #282a2c;
+  --border-strong: #37393b;
+  --border-subtle: #1c1d1e;
+  --text-primary: #e3e3e3;
+  --text-secondary: #8e918f;
+  --text-muted: #5f6368;
+  --accent: #8ab4f8;
+  --accent-hover: #aecbfa;
+  --accent-subtle: rgba(138, 180, 248, 0.12);
+  --success: #81c995;
+  --warning: #fdd663;
+  --error: #f28b82;
+  --info: #8ab4f8;
 
   /* Aliases for flexible utility */
   --bg-app: var(--background);
   --bg-card: var(--surface);
-  --bg-subtle: #121215;
+  --bg-subtle: #18191a;
   --bg-hover: var(--surface-hover);
   --border-app: var(--border);
-  --border-subtle: #202024;
   --text-main: var(--text-primary);
   --text-dim: var(--text-muted);
   --accent-main: var(--accent);
-  --accent-border: rgba(99, 102, 241, 0.35);
-  --badge-bg: rgba(99, 102, 241, 0.16);
-  --badge-text: #a5b4fc;
+  --accent-border: rgba(138, 180, 248, 0.3);
+  --badge-bg: rgba(138, 180, 248, 0.14);
+  --badge-text: #8ab4f8;
+  --pill-bg: #282a2c;
+  --pill-active: #37393b;
+  --sidebar-bg: #131314;
+  --inspector-bg: #131314;
   color-scheme: dark;
 }
 
@@ -44,12 +49,14 @@
   --surface: #ffffff;
   --surface-hover: #f1f5f9;
   --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-subtle: #f1f5f9;
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-subtle: #dbeafe;
+  --accent: #1a73e8;
+  --accent-hover: #1557b0;
+  --accent-subtle: #e8f0fe;
   --success: #16a34a;
   --warning: #ca8a04;
   --error: #dc2626;
@@ -60,13 +67,16 @@
   --bg-subtle: #f1f5f9;
   --bg-hover: var(--surface-hover);
   --border-app: var(--border);
-  --border-subtle: #e2e8f0;
   --text-main: var(--text-primary);
   --text-dim: var(--text-muted);
   --accent-main: var(--accent);
-  --accent-border: rgba(37, 99, 235, 0.3);
+  --accent-border: rgba(26, 115, 232, 0.3);
   --badge-bg: var(--accent-subtle);
-  --badge-text: #1d4ed8;
+  --badge-text: #1a73e8;
+  --pill-bg: #f1f5f9;
+  --pill-active: #e2e8f0;
+  --sidebar-bg: #f8fafc;
+  --inspector-bg: #ffffff;
   color-scheme: light;
 }
 

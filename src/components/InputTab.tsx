@@ -13,6 +13,16 @@ import {
   RefreshCw,
   FileText,
   Globe,
+  Mail,
+  Zap,
+  Code2,
+  Sliders,
+  CheckCircle2,
+  Flame,
+  Check,
+  X,
+  Play,
+  Terminal,
 } from "lucide-react";
 import { PipelineResults, DocumentLanguage } from "../types";
 import { LanguageToggle } from "./LanguageToggle";
@@ -24,6 +34,9 @@ interface InputTabProps {
   activeModel: string;
   activeProvider: string;
   token: string;
+  onOpenEmailScanner?: () => void;
+  onOpenLaTeXPreview?: () => void;
+  onOpenSettingsDrawer?: () => void;
 }
 
 export function InputTab({
@@ -33,6 +46,9 @@ export function InputTab({
   activeModel,
   activeProvider,
   token,
+  onOpenEmailScanner,
+  onOpenLaTeXPreview,
+  onOpenSettingsDrawer,
 }: InputTabProps) {
   const [jobDescription, setJobDescription] = useState("");
   const [company, setCompany] = useState("");
@@ -42,8 +58,13 @@ export function InputTab({
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+  const [activeCategoryPill, setActiveCategoryPill] = useState("all");
+  const [isMetadataExpanded, setIsMetadataExpanded] = useState(false);
 
-  const [scrapeSuccessInfo, setScrapeSuccessInfo] = useState<{ detectedLang?: string; source?: string } | null>(null);
+  const [scrapeSuccessInfo, setScrapeSuccessInfo] = useState<{
+    detectedLang?: string;
+    source?: string;
+  } | null>(null);
 
   const handleFetchJobFromUrl = async () => {
     if (!jobUrl || !jobUrl.trim()) {
@@ -91,10 +112,10 @@ export function InputTab({
     }
   };
 
-  const handleRunPipeline = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRunPipeline = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!jobDescription.trim() || jobDescription.trim().length < 20) {
-      setError("Please paste a complete job description (minimum 20 characters).");
+      setError("Please paste a complete job description (minimum 20 characters) or scrape from URL.");
       return;
     }
 
@@ -191,7 +212,7 @@ export function InputTab({
         language,
       };
 
-      // Save to tracker automatically
+      // Auto-save to tracker
       await fetch("/api/tracker", {
         method: "POST",
         headers: {
@@ -219,60 +240,48 @@ export function InputTab({
     }
   };
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header Banner */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="p-2 rounded-xl bg-[var(--accent-subtle)] text-[var(--text-primary)]">
-                <Sparkles className="w-4 h-4 text-[var(--accent)]" />
-              </span>
-              <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
-                Tailor Job Application
-              </h1>
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-              Generate tailored 2-page LaTeX CVs and 1-page Cover Letters in English or German.
-            </p>
-          </div>
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleRunPipeline();
+    }
+  };
 
-          <div className="flex items-center gap-2.5 bg-[var(--background)] border border-[var(--border)] px-3.5 py-2 rounded-xl">
-            <Cpu className="w-4 h-4 text-[var(--accent)]" />
-            <div className="text-[11px] font-mono">
-              <div className="text-[var(--text-muted)] uppercase text-[9px] font-semibold">Active Engine</div>
-              <div className="font-semibold text-[var(--text-primary)] capitalize">
-                {activeProvider} <span className="text-[var(--accent)]">({activeModel})</span>
-              </div>
-            </div>
-          </div>
-        </div>
+  return (
+    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      {/* Top Header */}
+      <div className="space-y-1 pt-1">
+        <h1 className="text-xl sm:text-2xl font-semibold text-[#f2f2f2] tracking-tight">
+          Application Playground
+        </h1>
+        <p className="text-xs text-[#8e918f]">
+          Provide a job posting URL or paste requirements to generate tailored LaTeX documents.
+        </p>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <div className="p-4 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30 text-[var(--text-primary)] text-xs flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-[var(--error)] shrink-0 mt-0.5" />
+        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-[#e3e3e3] flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <strong className="font-semibold text-[var(--error)]">Pipeline Error:</strong> {error}
+            <strong className="font-semibold text-red-400">Error:</strong> {error}
           </div>
         </div>
       )}
 
       {/* Scrape Success Alert */}
       {scrapeSuccessInfo && (
-        <div className="p-4 rounded-xl bg-[var(--success)]/10 border border-[var(--success)]/30 text-[var(--text-primary)] text-xs flex items-start gap-3">
-          <Globe className="w-4 h-4 text-[var(--success)] shrink-0 mt-0.5" />
-          <div className="flex-1 space-y-1">
-            <div className="font-semibold text-[var(--success)] flex items-center gap-2">
-              <span>Job Posting Extracted & Cleaned Successfully</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--surface)] border border-[var(--border)] font-mono text-[var(--text-secondary)] font-normal">
-                Scraped Language: {scrapeSuccessInfo.detectedLang}
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-[#e3e3e3] flex items-start gap-3">
+          <Globe className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-0.5">
+            <div className="font-semibold text-emerald-400 flex items-center gap-2">
+              <span>Job Posting Extracted</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-[#1e1f20] border border-[#282a2c] font-mono text-[#8e918f]">
+                {scrapeSuccessInfo.detectedLang}
               </span>
             </div>
-            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-              Job details extracted. Application documents will be tailored in your selected output language (<strong>{language === "de" ? "German 🇩🇪" : "English 🇬🇧"}</strong>).
+            <p className="text-[11px] text-[#8e918f]">
+              Target output language: <strong>{language === "de" ? "German" : "English"}</strong>
             </p>
           </div>
         </div>
@@ -280,74 +289,114 @@ export function InputTab({
 
       {/* Pipeline Progress Indicator */}
       {isRunningPipeline && (
-        <div className="bg-[var(--surface)] border border-[var(--accent)] rounded-2xl p-5 shadow-lg space-y-4 animate-in fade-in duration-200">
+        <div className="p-4 rounded-xl bg-[#1e1f20] border border-[#8ab4f8]/50 shadow-md space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <RefreshCw className="w-4 h-4 text-[var(--accent)] animate-spin" />
-              <span className="text-xs font-bold text-[var(--text-primary)]">
-                Generating Application Documents...
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-[#8ab4f8] animate-spin" />
+              <span className="text-xs font-semibold text-[#f2f2f2]">
+                Processing Application Pipeline
               </span>
             </div>
-            <span className="text-xs font-mono font-bold text-[var(--accent)]">
+            <span className="text-xs font-mono text-[#8ab4f8]">
               Step {currentStep} of 3
             </span>
           </div>
 
-          {/* Progress track */}
           <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
             <div
-              className={`p-2.5 rounded-xl border transition-all ${
+              className={`p-2 rounded-lg border transition-all ${
                 currentStep >= 1
-                  ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--text-primary)] font-semibold"
-                  : "bg-[var(--background)] border-[var(--border)] text-[var(--text-muted)]"
+                  ? "bg-blue-500/10 border-[#8ab4f8] text-[#f2f2f2] font-semibold"
+                  : "bg-[#131314] border-[#282a2c] text-[#8e918f]"
               }`}
             >
-              1. Job Gap Analysis
+              1. Gap Analysis
             </div>
             <div
-              className={`p-2.5 rounded-xl border transition-all ${
+              className={`p-2 rounded-lg border transition-all ${
                 currentStep >= 2
-                  ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--text-primary)] font-semibold"
-                  : "bg-[var(--background)] border-[var(--border)] text-[var(--text-muted)]"
+                  ? "bg-blue-500/10 border-[#8ab4f8] text-[#f2f2f2] font-semibold"
+                  : "bg-[#131314] border-[#282a2c] text-[#8e918f]"
               }`}
             >
-              2. 2-Page CV Assembly
+              2. CV Tailoring
             </div>
             <div
-              className={`p-2.5 rounded-xl border transition-all ${
+              className={`p-2 rounded-lg border transition-all ${
                 currentStep >= 3
-                  ? "bg-[var(--accent-subtle)] border-[var(--accent)] text-[var(--text-primary)] font-semibold"
-                  : "bg-[var(--background)] border-[var(--border)] text-[var(--text-muted)]"
+                  ? "bg-blue-500/10 border-[#8ab4f8] text-[#f2f2f2] font-semibold"
+                  : "bg-[#131314] border-[#282a2c] text-[#8e918f]"
               }`}
             >
-              3. 1-Page Cover Letter
+              3. Cover Letter
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Input Form */}
-      <form onSubmit={handleRunPipeline} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-5">
-        {/* Top Options: Metadata & Target Language */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3">
+      {/* Main Interactive AI Studio Prompt Capsule / Workspace */}
+      <form
+        onSubmit={handleRunPipeline}
+        className="rounded-3xl bg-[#1e1f20] border border-[#282a2c] p-4 sm:p-5 space-y-4 shadow-2xl transition-all focus-within:border-[#8ab4f8]/60 relative"
+      >
+        {/* Quick URL Scraper & Metadata Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pb-2 border-b border-[#282a2c]">
+          <div className="flex-1 relative">
+            <LinkIcon className="w-3.5 h-3.5 text-[#8e918f] absolute left-3 top-3" />
+            <input
+              type="url"
+              value={jobUrl}
+              onChange={(e) => setJobUrl(e.target.value)}
+              placeholder="Paste Job URL (LinkedIn, StepStone, Indeed, Company Site)..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#131314] border border-[#282a2c] text-xs text-[#e3e3e3] placeholder-[#5f6368] focus:outline-none focus:border-[#8ab4f8] transition-colors"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleFetchJobFromUrl}
+            disabled={isFetchingUrl || !jobUrl.trim()}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#282a2c] hover:bg-[#323438] text-xs font-medium text-[#f2f2f2] border border-[#3a3d40] transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap"
+          >
+            {isFetchingUrl ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#8ab4f8]" />
+                <span>Scraping URL...</span>
+              </>
+            ) : (
+              <>
+                <Globe className="w-3.5 h-3.5 text-[#8ab4f8]" />
+                <span>Fetch Job Posting</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMetadataExpanded(!isMetadataExpanded)}
+            className="px-3 py-2 rounded-xl text-xs text-[#8e918f] hover:text-[#e3e3e3] hover:bg-[#282a2c] transition-colors cursor-pointer whitespace-nowrap"
+          >
+            {isMetadataExpanded ? "Hide Metadata" : "+ Company & Role"}
+          </button>
+        </div>
+
+        {/* Expandable Optional Metadata */}
+        {isMetadataExpanded && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in fade-in duration-150">
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[var(--accent)]" />
+              <label className="text-[11px] font-medium text-[#c4c7c5] block mb-1">
                 Target Company (Optional)
               </label>
               <input
                 type="text"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                placeholder="e.g. BMW Group, SAP, Stripe"
-                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-3.5 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
+                placeholder="e.g. BMW Group, Stripe, SAP"
+                className="w-full px-3 py-1.5 rounded-xl bg-[#131314] border border-[#282a2c] text-xs text-[#e3e3e3] focus:outline-none focus:border-[#8ab4f8]"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-[var(--accent)]" />
+              <label className="text-[11px] font-medium text-[#c4c7c5] block mb-1">
                 Target Role / Job Title (Optional)
               </label>
               <input
@@ -355,123 +404,83 @@ export function InputTab({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Senior Full Stack Engineer"
-                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-3.5 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
+                className="w-full px-3 py-1.5 rounded-xl bg-[#131314] border border-[#282a2c] text-xs text-[#e3e3e3] focus:outline-none focus:border-[#8ab4f8]"
               />
             </div>
           </div>
+        )}
 
-          <div className="space-y-3">
-            {/* Language Selection Toggle */}
+        {/* Textarea: Prompt / Job Description */}
+        <div className="space-y-1.5">
+          <textarea
+            rows={8}
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Paste job description requirements or scrape above to generate tailored CV and cover letter..."
+            className="w-full bg-transparent text-xs text-[#e3e3e3] placeholder-[#5f6368] leading-relaxed focus:outline-none font-mono resize-y border-none"
+          />
+        </div>
+
+        {/* Prompt Capsule Bottom Controls & Active Chips */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-[#282a2c]">
+          {/* Active Chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Grounding Chip */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-[#282a2c] text-[#8ab4f8] border border-[#3a3d40]">
+              <Globe className="w-3 h-3 text-[#8ab4f8]" />
+              <span>Web Grounding</span>
+            </span>
+
+            {/* Language Switcher */}
             <LanguageToggle
               selectedLanguage={language}
               onChange={setLanguage}
               disabled={isRunningPipeline}
             />
 
-            <div>
-              <label className="block text-xs font-semibold text-[var(--text-primary)] mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-[var(--accent)]" />
-                  Job Posting URL (Scrape & Auto-Fill)
-                </span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={jobUrl}
-                  onChange={(e) => setJobUrl(e.target.value)}
-                  placeholder="https://linkedin.com/jobs/view/... or any career link"
-                  className="flex-1 bg-[var(--background)] border border-[var(--border)] rounded-xl px-3.5 py-2 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition"
-                />
-                <button
-                  type="button"
-                  onClick={handleFetchJobFromUrl}
-                  disabled={isFetchingUrl || !jobUrl.trim()}
-                  className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer ${
-                    isFetchingUrl || !jobUrl.trim()
-                      ? "bg-[var(--surface-hover)] text-[var(--text-muted)] border border-[var(--border)] cursor-not-allowed opacity-70"
-                      : "bg-[var(--accent)] text-white hover:opacity-90 active:scale-[0.98]"
-                  }`}
-                >
-                  {isFetchingUrl ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Scraping...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Globe className="w-3.5 h-3.5" />
-                      <span>Fetch Job Details</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+            {/* Character counter */}
+            <span className="text-[10px] font-mono text-[#8e918f]">
+              {jobDescription.length} chars
+            </span>
           </div>
-        </div>
 
-        {/* Job Description Textarea */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[var(--accent)]" />
-              <span>Job Description & Requirements *</span>
-            </label>
-            <div className="flex items-center gap-3">
-              {jobUrl.trim() && (
-                <button
-                  type="button"
-                  onClick={handleFetchJobFromUrl}
-                  disabled={isFetchingUrl}
-                  className="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1 font-medium"
-                >
-                  <Globe className="w-3 h-3" />
-                  <span>Fetch from URL</span>
-                </button>
+          {/* Action Button: Run Ctrl ↵ */}
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onOpenSettingsDrawer}
+              className="p-2 rounded-xl text-[#8e918f] hover:text-[#e3e3e3] hover:bg-[#282a2c] transition-colors cursor-pointer"
+              title="Run settings inspector"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+
+            <button
+              type="submit"
+              disabled={isRunningPipeline || !jobDescription.trim()}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-lg transition-all cursor-pointer ${
+                isRunningPipeline || !jobDescription.trim()
+                  ? "bg-[#282a2c] text-[#8e918f] border border-[#37393b] cursor-not-allowed opacity-60"
+                  : "bg-gradient-to-r from-[#4285f4] via-[#5b95f5] to-[#7aa9f7] hover:opacity-95 text-[#101012] border border-[#8ab4f8]/40 active:scale-[0.98]"
+              }`}
+            >
+              {isRunningPipeline ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Tailoring Pipeline...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Tailor Application</span>
+                  <span className="text-[10px] font-mono opacity-70 px-1 py-0.2 rounded bg-black/20">
+                    Ctrl ↵
+                  </span>
+                </>
               )}
-              <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                {jobDescription.length} characters
-              </span>
-            </div>
+            </button>
           </div>
-          <textarea
-            rows={11}
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            placeholder="Paste the job posting here, OR paste a URL above and click 'Fetch Job Details' to extract it automatically..."
-            className="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl p-4 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] font-mono leading-relaxed focus:outline-none focus:border-[var(--accent)] transition resize-y"
-          />
-        </div>
-
-        {/* Submission Actions */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-[var(--border)]">
-          <div className="flex items-center gap-2 text-[11px] text-[var(--text-secondary)]">
-            <ShieldCheck className="w-4 h-4 text-[var(--accent)] shrink-0" />
-            <span>Content generated directly from your candidate master profile.</span>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isRunningPipeline || !jobDescription.trim()}
-            className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              isRunningPipeline || !jobDescription.trim()
-                ? "bg-[var(--surface-hover)] border border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-80"
-                : "bg-[var(--accent)] hover:opacity-95 text-white border border-[var(--accent)] shadow-sm active:scale-[0.98]"
-            }`}
-          >
-            {isRunningPipeline ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Generating {language === "de" ? "German" : "English"} Documents...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>Generate Documents ({language === "de" ? "German 🇩🇪" : "English 🇬🇧"})</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-              </>
-            )}
-          </button>
         </div>
       </form>
     </div>

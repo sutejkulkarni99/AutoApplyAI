@@ -9,12 +9,14 @@ import {
   Shield,
   LogOut,
   Cpu,
-  Globe2,
+  Mail,
+  Sliders,
+  PanelLeft,
 } from "lucide-react";
 import { User as UserType, ThemePreset } from "../types";
 import { ThemeSelector } from "./ThemeSelector";
 
-export type TabType = "input" | "preview" | "kanban" | "profile" | "settings";
+export type TabType = "input" | "preview" | "kanban" | "emails" | "profile" | "settings";
 
 interface NavbarProps {
   activeTab: TabType;
@@ -26,6 +28,8 @@ interface NavbarProps {
   onThemeChange: (theme: ThemePreset) => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
+  onToggleSidebar?: () => void;
+  onToggleSettingsDrawer?: () => void;
 }
 
 export function Navbar({
@@ -38,95 +42,96 @@ export function Navbar({
   onThemeChange,
   onOpenAdmin,
   onLogout,
+  onToggleSidebar,
+  onToggleSettingsDrawer,
 }: NavbarProps) {
   return (
-    <header className="sticky top-0 z-40 bg-[var(--surface)]/90 backdrop-blur-md border-b border-[var(--border)] px-4 sm:px-6 py-2.5 transition-colors">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-40 bg-[#131314]/95 backdrop-blur-md border-b border-[#282a2c] px-3 sm:px-5 py-2 transition-colors">
+      <div className="flex items-center justify-between gap-3">
+        {/* Left: Brand Identity + Sidebar trigger */}
+        <div className="flex items-center gap-2.5">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="p-1.5 rounded-lg text-[#8e918f] hover:text-[#e3e3e3] hover:bg-[#282a2c] transition-colors cursor-pointer"
+              title="Toggle Sidebar Navigation"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setActiveTab("input")}
-            className="flex items-center gap-3 text-left group focus:outline-none"
+            className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-[var(--accent)] text-white flex items-center justify-center shadow-sm group-hover:opacity-90 transition-opacity">
-              <FileCode2 className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#4285f4] via-[#9b72cb] to-[#d96570] p-[1px] shadow-sm flex items-center justify-center">
+              <div className="w-full h-full bg-[#131314] rounded-[11px] flex items-center justify-center group-hover:bg-opacity-80 transition-all">
+                <Sparkles className="w-3.5 h-3.5 text-[#8ab4f8]" />
+              </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-[var(--text-primary)] tracking-tight">
-                  AutoApply
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-xs text-[#f2f2f2] tracking-tight">
+                  AutoApply Studio
                 </span>
-                <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--text-primary)] border border-[var(--border)]">
-                  LaTeX Suite
+                <span className="text-[9px] font-mono font-medium px-1.5 py-0.2 rounded bg-blue-500/10 text-[#8ab4f8] border border-blue-500/20">
+                  LaTeX Pro
                 </span>
               </div>
-              <p className="text-[10px] text-[var(--text-secondary)] font-mono leading-none hidden sm:block mt-0.5">
-                LaTeX Application Suite • English & German
-              </p>
             </div>
           </button>
         </div>
 
-        {/* Center: Main App Navigation Hierarchy */}
-        <nav className="flex items-center bg-[var(--background)] p-1 rounded-xl border border-[var(--border)]">
-          <button
-            type="button"
-            onClick={() => setActiveTab("input")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "input"
-                ? "bg-[var(--accent)] text-white shadow-sm font-semibold"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>1. Tailor Job</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("preview")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "preview"
-                ? "bg-[var(--accent)] text-white shadow-sm font-semibold"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-            }`}
-          >
-            <FileCheck2 className="w-3.5 h-3.5" />
-            <span>2. Documents & PDF</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("kanban")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeTab === "kanban"
-                ? "bg-[var(--accent)] text-white shadow-sm font-semibold"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-            }`}
-          >
-            <Kanban className="w-3.5 h-3.5" />
-            <span>3. Tracker</span>
-          </button>
-        </nav>
+        {/* Center: Clean Breadcrumb Title */}
+        <div className="hidden sm:flex items-center gap-2 text-xs text-[#8e918f]">
+          <span className="text-[#5f6368]">Workspace</span>
+          <span className="text-[#5f6368]">/</span>
+          <span className="font-semibold text-[#f2f2f2] capitalize">
+            {activeTab === "input"
+              ? "Playground"
+              : activeTab === "preview"
+              ? "Documents & LaTeX"
+              : activeTab === "kanban"
+              ? "Kanban Tracker"
+              : activeTab === "emails"
+              ? "Email Scanner"
+              : activeTab === "profile"
+              ? "Master Profile"
+              : "Settings"}
+          </span>
+        </div>
 
         {/* Right: Actions Cluster */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Active AI Model Pill */}
           <button
             type="button"
             onClick={() => setActiveTab("settings")}
             title="Configure AI Provider & Model in Settings"
-            className="hidden md:flex items-center gap-2 bg-[var(--background)] hover:bg-[var(--surface-hover)] border border-[var(--border)] px-2.5 py-1.5 rounded-xl text-[11px] font-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            className="hidden md:flex items-center gap-1.5 bg-[#1e1f20] hover:bg-[#282a2c] border border-[#282a2c] px-2.5 py-1 rounded-xl text-[11px] font-mono text-[#8e918f] hover:text-[#e3e3e3] transition-colors cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
-            <Cpu className="w-3.5 h-3.5 text-[var(--accent)]" />
-            <span className="font-semibold capitalize text-[var(--text-primary)]">{activeProvider}:</span>
-            <span className="text-[var(--accent)] truncate max-w-[110px]">{activeModel}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <Cpu className="w-3 h-3 text-[#8ab4f8]" />
+            <span className="font-semibold capitalize text-[#f2f2f2]">{activeProvider}:</span>
+            <span className="text-[#8ab4f8] truncate max-w-[90px]">{activeModel}</span>
           </button>
 
           {/* Theme Selector */}
           <ThemeSelector currentTheme={currentTheme} onThemeChange={onThemeChange} />
+
+          {/* Settings Drawer Inspector Toggle */}
+          {onToggleSettingsDrawer && (
+            <button
+              type="button"
+              onClick={onToggleSettingsDrawer}
+              title="Run Settings & Model Inspector"
+              className="p-1.5 rounded-xl bg-[#1e1f20] hover:bg-[#282a2c] text-[#8e918f] hover:text-[#e3e3e3] border border-[#282a2c] transition-colors cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Admin Button */}
           {currentUser?.role === "admin" && (
@@ -134,9 +139,9 @@ export function Navbar({
               type="button"
               onClick={onOpenAdmin}
               title="Administrator Management Console"
-              className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors cursor-pointer"
+              className="p-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors cursor-pointer"
             >
-              <Shield className="w-4 h-4" />
+              <Shield className="w-3.5 h-3.5" />
             </button>
           )}
 
@@ -145,27 +150,13 @@ export function Navbar({
             type="button"
             onClick={() => setActiveTab("profile")}
             title={`Candidate Master Profile (${currentUser?.username || "User"})`}
-            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+            className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
               activeTab === "profile"
-                ? "bg-[var(--accent-subtle)] text-[var(--text-primary)] border-[var(--border)]"
-                : "bg-[var(--background)] hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border)]"
+                ? "bg-[#282a2c] text-[#f2f2f2] border-[#3a3d40]"
+                : "bg-[#1e1f20] hover:bg-[#282a2c] text-[#8e918f] hover:text-[#e3e3e3] border-[#282a2c]"
             }`}
           >
-            <User className="w-4 h-4" />
-          </button>
-
-          {/* Settings */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("settings")}
-            title="System Settings & LLM API Keys"
-            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-              activeTab === "settings"
-                ? "bg-[var(--accent-subtle)] text-[var(--text-primary)] border-[var(--border)]"
-                : "bg-[var(--background)] hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border)]"
-            }`}
-          >
-            <Settings className="w-4 h-4" />
+            <User className="w-3.5 h-3.5" />
           </button>
 
           {/* Sign Out */}
@@ -173,9 +164,9 @@ export function Navbar({
             type="button"
             onClick={onLogout}
             title="Sign Out"
-            className="p-2 rounded-xl bg-[var(--background)] hover:bg-red-500/10 hover:text-red-400 text-[var(--text-muted)] border border-[var(--border)] transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl bg-[#1e1f20] hover:bg-red-500/10 hover:text-red-400 text-[#8e918f] border border-[#282a2c] transition-colors cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

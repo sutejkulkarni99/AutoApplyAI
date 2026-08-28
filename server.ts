@@ -27,6 +27,12 @@ import {
   buildFullCoverTex,
   compileLaTeX,
 } from "./server/latex.js";
+import {
+  testImapHandshake,
+  fetchHistoricalEmails,
+  classifyRecruiterEmailRuleBased,
+  ImapAccountConfig,
+} from "./server/imap.js";
 
 const app = express();
 const PORT = 3000;
@@ -35,6 +41,62 @@ app.use(express.json({ limit: "15mb" }));
 
 // Initialize base admin
 initializeAdminUser();
+
+// ==========================================
+// SYSTEM AUDIT & DIAGNOSTIC LOGGING BUFFER
+// ==========================================
+export interface SystemLogEntry {
+  id: string;
+  timestamp: string;
+  level: "info" | "warn" | "error" | "debug";
+  category: "llm" | "latex" | "scraper" | "email" | "auth" | "system";
+  message: string;
+  durationMs?: number;
+  details?: any;
+}
+
+const MAX_LOG_ENTRIES = 300;
+const systemLogs: SystemLogEntry[] = [];
+
+export function addSystemLog(
+  category: SystemLogEntry["category"],
+  level: SystemLogEntry["level"],
+  message: string,
+  details?: any,
+  durationMs?: number
+) {
+  const entry: SystemLogEntry = {
+    id: `log_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString(),
+    level,
+    category,
+    message,
+    durationMs,
+    details: details ? (typeof details === "string" ? details : JSON.parse(JSON.stringify(details))) : undefined,
+  };
+
+  systemLogs.unshift(entry);
+  if (systemLogs.length > MAX_LOG_ENTRIES) {
+    systemLogs.pop();
+  }
+
+  // Console output
+  const prefix = `[${entry.category.toUpperCase()}] [${entry.level.toUpperCase()}]`;
+  if (level === "error") {
+    console.error(prefix, message, details || "");
+  } else if (level === "warn") {
+    console.warn(prefix, message, details || "");
+  } else {
+    console.log(prefix, message);
+  }
+}
+
+// Initial system boot log
+addSystemLog("system", "info", "AutoApply server engine initialized", {
+  port: PORT,
+  nodeEnv: process.env.NODE_ENV || "development",
+  platform: process.platform,
+});
 
 // Available models catalog with provider mapping
 const AVAILABLE_MODELS = [
@@ -124,8 +186,37 @@ function saveUserTracker(userId: string, apps: any[]) {
   fs.writeFileSync(path.join(userDir, "tracker_data.json"), JSON.stringify(apps, null, 2), "utf-8");
 }
 
+// Helper: get user email settings
+function getUserEmailSettings(userId: string) {
+  const userDir = getUserDataDir(userId);
+  const emailFile = path.join(userDir, "email_settings.json");
+  const defaultSettings = {
+    enabled: false,
+    autoMoveKanban: false,
+    syncIntervalMinutes: 15,
+    lastGlobalSync: new Date().toISOString(),
+    accounts: [],
+    logs: [],
+  };
+
+  if (fs.existsSync(emailFile)) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(emailFile, "utf-8"));
+      return { ...defaultSettings, ...saved };
+    } catch {
+      return defaultSettings;
+    }
+  }
+  return defaultSettings;
+}
+
+function saveUserEmailSettings(userId: string, data: any) {
+  const userDir = getUserDataDir(userId);
+  fs.writeFileSync(path.join(userDir, "email_settings.json"), JSON.stringify(data, null, 2), "utf-8");
+}
+
 // ==========================================
-// AUTHENTICATION ROUTES
+// KANBAN APPLICATION TRACKER ROUTES
 // ==========================================
 
 app.post("/api/auth/login", (req: Request, res: Response) => {
@@ -146,6 +237,10 @@ app.post("/api/auth/login", (req: Request, res: Response) => {
   saveUsers(users);
 
   const session = createSession(user);
+  addSystemLog("auth", "info", `User '${user.username}' logged in successfully`, {
+    role: user.role,
+    userId: user.id,
+  });
 
   res.json({
     token: session.token,
@@ -323,7 +418,75 @@ app.delete("/api/admin/users/:id", authMiddleware, adminOnlyMiddleware, (req: Au
     console.warn("Could not remove user directory:", e);
   }
 
+  addSystemLog("auth", "info", `User '${user.username}' deleted by admin`, { deletedUserId: id, admin: req.user!.username });
   res.json({ message: `User '${user.username}' deleted successfully.` });
+});
+
+// ==========================================
+// SYSTEM AUDIT & DIAGNOSTIC LOGS ENDPOINTS
+// ==========================================
+
+app.get("/api/admin/system-logs", authMiddleware, adminOnlyMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { category, level, search, limit = 100 } = req.query;
+
+  let filtered = [...systemLogs];
+
+  if (category && typeof category === "string" && category !== "all") {
+    filtered = filtered.filter((l) => l.category === category);
+  }
+
+  if (level && typeof level === "string" && level !== "all") {
+    filtered = filtered.filter((l) => l.level === level);
+  }
+
+  if (search && typeof search === "string") {
+    const term = search.toLowerCase();
+    filtered = filtered.filter(
+      (l) =>
+        l.message.toLowerCase().includes(term) ||
+        (l.details && JSON.stringify(l.details).toLowerCase().includes(term))
+    );
+  }
+
+  const maxItems = Math.min(Number(limit) || 100, 300);
+  res.json({
+    logs: filtered.slice(0, maxItems),
+    total: systemLogs.length,
+    filteredCount: filtered.length,
+  });
+});
+
+app.post("/api/admin/system-logs/clear", authMiddleware, adminOnlyMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const previousCount = systemLogs.length;
+  systemLogs.length = 0;
+  addSystemLog("system", "info", "System diagnostic logs cleared by administrator", {
+    admin: req.user!.username,
+    clearedCount: previousCount,
+  });
+  res.json({ message: "System logs cleared successfully.", previousCount });
+});
+
+app.get("/api/admin/system-diagnostics", authMiddleware, adminOnlyMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const users = getAllUsers();
+  const memory = process.memoryUsage();
+  
+  res.json({
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+    platform: process.platform,
+    environment: process.env.NODE_ENV || "development",
+    memoryUsage: {
+      rssMb: (memory.rss / 1024 / 1024).toFixed(1),
+      heapTotalMb: (memory.heapTotal / 1024 / 1024).toFixed(1),
+      heapUsedMb: (memory.heapUsed / 1024 / 1024).toFixed(1),
+    },
+    metrics: {
+      totalUsers: users.length,
+      adminUsers: users.filter((u) => u.role === "admin").length,
+      logCount: systemLogs.length,
+    },
+  });
 });
 
 // ==========================================
@@ -687,6 +850,13 @@ Return JSON:
       console.warn("LLM job text formatting failed, using raw cleaned text:", llmErr);
     }
 
+    addSystemLog("scraper", "info", `Successfully fetched job posting: ${finalTitle || "Job"} at ${finalCompany || "Company"}`, {
+      url,
+      source: fetchSource,
+      detectedLanguage,
+      descLength: formattedJobDesc.length,
+    });
+
     res.json({
       success: true,
       url,
@@ -698,6 +868,7 @@ Return JSON:
     });
   } catch (err: any) {
     console.error("Error scraping job URL:", err);
+    addSystemLog("scraper", "error", `Failed to scrape job posting from ${url}: ${err.message}`, { url, error: err.message });
     res.status(500).json({
       error: `Failed to scrape job posting (${err.message || "Network Error"}). Please copy & paste the job description manually.`,
     });
@@ -924,6 +1095,13 @@ app.post("/api/ai/run-pipeline", authMiddleware, async (req: AuthenticatedReques
   } catch {}
 
   try {
+    const startTime = Date.now();
+    addSystemLog("llm", "info", `Starting 3-pass application tailoring for ${company || "Target Role"}`, {
+      provider: userSettings.provider,
+      model: userSettings.ai_model,
+      language: isGerman ? "de" : "en",
+    });
+
     // Pass 1
     const p1Prompt = `Analyze this Job Description against the Candidate's Master Profile:\nTARGET LANGUAGE: ${isGerman ? "GERMAN" : "ENGLISH"}\n\nPROFILE:\n${profileYaml}\n\nJOB METADATA:\nCompany: ${company || "Target Company"}\nTitle: ${title || "Target Role"}\nURL: ${job_url || ""}\n\nJOB DESCRIPTION:\n${job_description}\n\nReturn valid JSON: {"job_analysis": {"title": string, "company": string, "must_have": [string], "nice_to_have": [string], "tone": string}, "content_plan": {"summary_variant": string, "dynamic_header_title": string, "selected_skills": [{"name": string, "category": string}], "selected_experience": [{"company": string, "title": string, "selected_bullets": [number], "priority": number}], "education_entries": [number], "include_projects": boolean, "certifications_to_include": [number]}, "gaps": {"missing_skills": [string], "missing_requirements": [string], "strategy": string}, "estimated_length": {"cv_words": number, "cover_words": number}}`;
     
@@ -957,6 +1135,14 @@ app.post("/api/ai/run-pipeline", authMiddleware, async (req: AuthenticatedReques
 
     const fullCvTex = buildFullCVTex(parsedProfile?.personal, pass1, pass2, isGerman ? "de" : "en");
     const fullCoverTex = buildFullCoverTex(parsedProfile?.personal, pass1, pass3, isGerman ? "de" : "en");
+
+    const duration = Date.now() - startTime;
+    addSystemLog("llm", "info", `Completed 3-pass tailoring in ${duration}ms`, {
+      provider: userSettings.provider,
+      model: userSettings.ai_model,
+      durationMs: duration,
+      gapsCount: pass1?.gaps?.missing_skills?.length || 0,
+    }, duration);
 
     const fullResult = {
       pass_1: pass1,
@@ -996,6 +1182,7 @@ app.post("/api/ai/run-pipeline", authMiddleware, async (req: AuthenticatedReques
 
     res.json(fullResult);
   } catch (error: any) {
+    addSystemLog("llm", "error", `Pipeline failed: ${error.message}`, { error: error.message });
     res.status(500).json({ error: `AI Pipeline Execution Failed: ${error.message}` });
   }
 });
@@ -1031,13 +1218,26 @@ app.post("/api/latex/compile", authMiddleware, async (req: AuthenticatedRequest,
     return res.status(400).json({ error: "LaTeX source code is required." });
   }
 
+  const startTime = Date.now();
   const result = await compileLaTeX(latex_source, filename);
+  const duration = Date.now() - startTime;
 
   if (result.success && result.pdfBuffer) {
+    addSystemLog("latex", "info", `Compiled PDF successfully (${filename}.pdf) in ${duration}ms`, {
+      filename,
+      sizeBytes: result.pdfBuffer.length,
+      durationMs: duration,
+    }, duration);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
     return res.send(result.pdfBuffer);
   }
+
+  addSystemLog("latex", "warn", `LaTeX compilation error: ${result.error || "Engine error"}`, {
+    filename,
+    error: result.error,
+    logSnippet: result.log ? result.log.slice(0, 300) : undefined,
+  }, duration);
 
   res.status(422).json({
     success: false,
@@ -1097,6 +1297,581 @@ app.delete("/api/tracker/:id", authMiddleware, (req: AuthenticatedRequest, res: 
   saveUserTracker(userId, applications);
 
   res.json({ message: "Application deleted successfully." });
+});
+
+// ==========================================
+// EMAIL INTEGRATION & AUTOMATED KANBAN SCANNER
+// ==========================================
+
+app.get("/api/emails/settings", authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const settings = getUserEmailSettings(userId);
+
+  // Clean legacy false positive logs (e.g. job alerts, banking, promotional, otp, security)
+  const sanitizedLogs = (settings.logs || []).filter((log: any) => {
+    const text = `${log.company} ${log.subject} ${log.fromEmail} ${log.fromName} ${log.snippet}`.toLowerCase();
+    const isExcluded =
+      /job\s*alert|daily\s*jobs|job\s*recommendations|jobagent|stepstone|indeed\s*alerts|glassdoor\s*alerts|hdfc|icici|sbi|axisbank|kotak|citibank|chase\b|bankofamerica|wellsfargo|barclays|hsbc|paypal|stripe\s*billing|paytm|phonepe|razorpay|cred\b|amex|mastercard|visa\b|credit\s*card|debit\s*card|statement|transaction|amazon\b|flipkart|swiggy|zomato|uber\b|netflix|spotify|otp\b|one\s*time\s*password|verification\s*code|security\s*alert|verify\s*your\s*new\s*device|new\s*login|nse_alerts|funds\/securities|rakhi\s*sale|essential\s*reads|mint\b/i.test(
+        text
+      );
+    return !isExcluded;
+  });
+
+  if (sanitizedLogs.length !== (settings.logs || []).length) {
+    settings.logs = sanitizedLogs;
+    saveUserEmailSettings(userId, settings);
+  }
+
+  // Mask account passwords before sending to frontend
+  const safeAccounts = (settings.accounts || []).map((acc: any) => ({
+    ...acc,
+    hasPassword: Boolean(acc.password && acc.password.length > 0),
+    password: "",
+  }));
+  res.json({
+    ...settings,
+    accounts: safeAccounts,
+  });
+});
+
+app.post("/api/emails/clear-logs", authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const settings = getUserEmailSettings(userId);
+  settings.logs = [];
+  settings.lastBackScanSummary = undefined;
+  saveUserEmailSettings(userId, settings);
+  
+  const safeAccounts = (settings.accounts || []).map((acc: any) => ({
+    ...acc,
+    hasPassword: Boolean(acc.password && acc.password.length > 0),
+    password: "",
+  }));
+
+  res.json({
+    message: "Activity audit log cleared.",
+    settings: {
+      ...settings,
+      accounts: safeAccounts,
+    },
+  });
+});
+
+app.delete("/api/emails/logs/:logId", authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { logId } = req.params;
+  const settings = getUserEmailSettings(userId);
+  
+  settings.logs = (settings.logs || []).filter((l: any) => l.id !== logId);
+  saveUserEmailSettings(userId, settings);
+
+  res.json({
+    message: "Log entry removed.",
+    logs: settings.logs,
+  });
+});
+
+app.post("/api/emails/settings", authMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const current = getUserEmailSettings(userId);
+
+  // Preserve existing passwords if new accounts payload omits or sends empty password
+  const mergedAccounts = (req.body.accounts || []).map((newAcc: any) => {
+    const existing = (current.accounts || []).find((a: any) => a.id === newAcc.id);
+    return {
+      ...newAcc,
+      password: newAcc.password ? newAcc.password : existing?.password || "",
+    };
+  });
+
+  const updated = {
+    ...current,
+    ...req.body,
+    accounts: mergedAccounts,
+  };
+  saveUserEmailSettings(userId, updated);
+
+  const safeAccounts = updated.accounts.map((acc: any) => ({
+    ...acc,
+    hasPassword: Boolean(acc.password && acc.password.length > 0),
+    password: "",
+  }));
+
+  res.json({
+    ...updated,
+    accounts: safeAccounts,
+  });
+});
+
+// Test real IMAP server handshake and credentials
+app.post("/api/emails/test-connection", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { id, email, provider, imapHost, imapPort, username, password } = req.body;
+  const current = getUserEmailSettings(userId);
+  const existingAcc = (current.accounts || []).find((a: any) => a.id === id);
+
+  const accountConfig: ImapAccountConfig = {
+    id: id || "temp_test",
+    email: email || existingAcc?.email || "",
+    label: req.body.label || existingAcc?.label || "Inbox",
+    provider: provider || existingAcc?.provider || "gmail_oauth",
+    status: "connected",
+    imapHost: imapHost !== undefined ? imapHost : existingAcc?.imapHost,
+    imapPort: imapPort ? Number(imapPort) : existingAcc?.imapPort || 993,
+    username: username || existingAcc?.username || email,
+    password: password || existingAcc?.password || "",
+  };
+
+  const result = await testImapHandshake(accountConfig);
+  addSystemLog("email", result.success ? "info" : "warn", `IMAP Test: ${result.message}`, {
+    email: accountConfig.email,
+    host: result.host,
+  });
+
+  res.json(result);
+});
+
+// Helper to extract fallback company name if missing from classification
+function extractFallbackCompanyFromEmail(email: any): string {
+  if (email.fromName) {
+    const clean = email.fromName
+      .replace(/["']/g, "")
+      .replace(/\s*(P&O Talent|Talent Acquisition|Recruiting Team|Talent Team|Careers|Recruiting|Karriere|Hiring Team|Team|GmbH|AG|Inc\.?|LLC|Pvt Ltd|HR Team)\b.*$/gi, "")
+      .trim();
+    if (clean.length >= 2 && !/^(linkedin|stepstone|indeed|noreply|no-reply|notification|notifications|google|support|system|jobs|recruitment|talent)$/i.test(clean)) {
+      return clean;
+    }
+  }
+  if (email.fromEmail && email.fromEmail.includes("@")) {
+    const dom = email.fromEmail.split("@")[1];
+    if (dom && !/gmail|outlook|yahoo|linkedin|hotmail|greenhouse|lever|workday|ashby|smartrecruiters|personio|join|teamtailor|bamboohr|icims|taleo|stepstone|indeed|jobvite|bullhorn/i.test(dom)) {
+      const rDom = dom.split(".")[0];
+      if (rDom && rDom.length >= 2) {
+        return rDom.charAt(0).toUpperCase() + rDom.slice(1);
+      }
+    }
+  }
+  if (email.subject) {
+    const subAt = email.subject.match(/(?:at|bei|to|for)\s+([A-Za-z0-9\s&.-]{2,30})/i);
+    if (subAt && subAt[1] && !/^(linkedin|stepstone|indeed|job|careers)$/i.test(subAt[1].trim())) {
+      return subAt[1].trim().split(" - ")[0].split(" | ")[0].trim();
+    }
+  }
+  return "Recruiter Application";
+}
+
+// Helper to deduplicate scanned email logs across multiple scans
+function deduplicateEmailLogs(newLogs: any[], existingLogs: any[]): any[] {
+  const seen = new Set<string>();
+  const combined = [...newLogs, ...existingLogs];
+  const result: any[] = [];
+  for (const item of combined) {
+    if (!item) continue;
+    const dateStr = item.date ? new Date(item.date).toISOString().split("T")[0] : "";
+    const cleanSub = (item.subject || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const cleanFrom = (item.fromEmail || "").toLowerCase().trim();
+    const key = `${item.accountId || ""}_${cleanFrom}_${dateStr}_${cleanSub}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(item);
+    }
+  }
+  return result.slice(0, 150);
+}
+
+// Deep Historical Back-Scan (Up to 1 year, 6 months, 3 months, 30 days, 7 days, or custom date range)
+app.post("/api/emails/backscan", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const {
+    accountId,
+    timeframe = "30d",
+    startDate,
+    endDate,
+    autoMoveKanban = true,
+    dryRun = false,
+    maxResults = 250,
+  } = req.body;
+
+  const emailSettings = getUserEmailSettings(userId);
+  const applications = getUserTracker(userId);
+  const startTime = Date.now();
+
+  let targetAccounts = emailSettings.accounts || [];
+  if (accountId && accountId !== "all") {
+    targetAccounts = targetAccounts.filter((a: any) => a.id === accountId);
+  }
+
+  if (targetAccounts.length === 0) {
+    return res.status(400).json({
+      error: "No configured email accounts found to scan. Add an email account with App Password in Settings.",
+    });
+  }
+
+  // Calculate timeframe bounds
+  const now = new Date();
+  let sinceDate = new Date();
+  let beforeDate: Date | undefined = undefined;
+  let timeframeDescription = "Past 30 Days";
+
+  if (timeframe === "7d") {
+    sinceDate = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+    timeframeDescription = "Past 7 Days";
+  } else if (timeframe === "30d") {
+    sinceDate = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+    timeframeDescription = "Past 30 Days";
+  } else if (timeframe === "90d") {
+    sinceDate = new Date(now.getTime() - 90 * 24 * 3600 * 1000);
+    timeframeDescription = "Past 3 Months";
+  } else if (timeframe === "180d") {
+    sinceDate = new Date(now.getTime() - 180 * 24 * 3600 * 1000);
+    timeframeDescription = "Past 6 Months";
+  } else if (timeframe === "365d") {
+    sinceDate = new Date(now.getTime() - 365 * 24 * 3600 * 1000);
+    timeframeDescription = "Past 1 Year";
+  } else if (timeframe === "custom" && startDate) {
+    sinceDate = new Date(startDate);
+    if (endDate) beforeDate = new Date(endDate);
+    timeframeDescription = `Custom (${sinceDate.toLocaleDateString()} - ${beforeDate ? beforeDate.toLocaleDateString() : "Now"})`;
+  }
+
+  let totalScanned = 0;
+  let matchedRecruiterEmails = 0;
+  let cardsUpdated = 0;
+  const errors: string[] = [];
+  const generatedLogs: any[] = [];
+
+  for (const account of targetAccounts) {
+    if (!account.password) {
+      errors.push(`Account ${account.email} has no password configured.`);
+      continue;
+    }
+
+    const fetchRes = await fetchHistoricalEmails(account, {
+      sinceDate,
+      beforeDate,
+      maxResults,
+    });
+
+    if (!fetchRes.success) {
+      errors.push(`${account.email}: ${fetchRes.error}`);
+      continue;
+    }
+
+    totalScanned += fetchRes.emails.length;
+
+    // Tracked company representations
+    const trackedList = applications.map((a) => ({
+      id: a.id,
+      company: a.company,
+      role: a.role,
+      status: a.status,
+    }));
+
+    // Process each email chronologically (oldest to newest)
+    for (const email of fetchRes.emails) {
+      const classification = classifyRecruiterEmailRuleBased(email, trackedList);
+
+      if (!classification.isCandidateRelated && classification.outcome === "other") {
+        continue; // Skip non-candidate emails completely
+      }
+
+      matchedRecruiterEmails++;
+
+      // Match or find application in tracker using clean company normalization
+      const compName = classification.matchedCompany || extractFallbackCompanyFromEmail(email);
+      const cNorm = compName.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      let matchedApp = null;
+      if (classification.matchedApplicationId) {
+        matchedApp = applications.find((a) => a.id === classification.matchedApplicationId);
+      }
+      if (!matchedApp && cNorm.length >= 2) {
+        matchedApp = applications.find((a) => {
+          if (!a.company) return false;
+          const aNorm = a.company.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return aNorm === cNorm;
+        });
+      }
+
+      let targetStatus: "scraped" | "tailored" | "applied" | "active" | "closed" = "applied";
+      if (classification.outcome === "offer" || classification.outcome === "interview" || classification.outcome === "assessment") {
+        targetStatus = "active";
+      } else if (classification.outcome === "rejection") {
+        targetStatus = "closed";
+      } else if (classification.outcome === "acknowledgement") {
+        targetStatus = "applied";
+      }
+
+      let actionTaken: "created_card" | "moved_kanban" | "synced_feedback" | "logged_only" | "no_match" = "no_match";
+      let previousStatus = undefined;
+      const emailDateFormatted = email.date ? new Date(email.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+
+      if (matchedApp) {
+        previousStatus = matchedApp.status;
+        const statusChanged = matchedApp.status !== targetStatus;
+        if (!dryRun && autoMoveKanban) {
+          if (statusChanged) {
+            matchedApp.status = targetStatus;
+          }
+          matchedApp.email_synced_at = new Date().toISOString();
+          matchedApp.last_email_feedback = `[${classification.outcome.toUpperCase()}] ${email.subject} (${new Date(email.date).toLocaleDateString()})`;
+          if (!matchedApp.date_applied) {
+            matchedApp.date_applied = emailDateFormatted;
+          }
+          matchedApp.notes = `${matchedApp.notes ? matchedApp.notes + "\n" : ""}⚡ ${statusChanged ? `Status moved to ${targetStatus.toUpperCase()}` : "Feedback synced"} via Back-Scan (${classification.outcome}): "${email.subject}" (${new Date(email.date).toLocaleDateString()})`;
+          actionTaken = statusChanged ? "moved_kanban" : "synced_feedback";
+          cardsUpdated++;
+        } else {
+          actionTaken = "logged_only";
+        }
+      } else {
+        // Auto-create new application card in Kanban for unmatched candidate email
+        if (!dryRun) {
+          const newApp = {
+            id: `app_auto_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+            company: compName,
+            role: classification.role || "Applied Position",
+            status: targetStatus,
+            source: email.fromEmail.includes("linkedin") ? "LinkedIn Easy Apply" : "Email Confirmation",
+            date_scraped: emailDateFormatted,
+            date_applied: emailDateFormatted,
+            notes: `⚡ Auto-detected & created from application email: "${email.subject}" (${new Date(email.date).toLocaleDateString()})`,
+            last_email_feedback: `[${classification.outcome.toUpperCase()}] ${email.subject}`,
+            email_synced_at: new Date().toISOString(),
+          };
+          applications.unshift(newApp);
+          matchedApp = newApp;
+          actionTaken = "created_card";
+          cardsUpdated++;
+
+          trackedList.push({
+            id: newApp.id,
+            company: newApp.company,
+            role: newApp.role,
+            status: newApp.status,
+          });
+        } else {
+          actionTaken = "logged_only";
+        }
+      }
+
+      const logItem = {
+        id: `log_bs_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+        accountId: account.id,
+        accountEmail: account.email,
+        fromEmail: email.fromEmail,
+        fromName: email.fromName,
+        subject: email.subject,
+        date: email.date,
+        snippet: email.snippet,
+        matchedApplicationId: matchedApp?.id,
+        company: classification.matchedCompany || matchedApp?.company || "Recruiter",
+        role: classification.role || matchedApp?.role || "Position",
+        detectedOutcome: classification.outcome,
+        previousStatus,
+        newStatus: targetStatus,
+        aiConfidence: classification.confidence,
+        analysisExplanation: classification.explanation,
+        processedAt: new Date().toISOString(),
+        actionTaken,
+      };
+
+      generatedLogs.unshift(logItem);
+    }
+
+    account.lastSync = new Date().toISOString();
+  }
+
+  if (!dryRun) {
+    saveUserTracker(userId, applications);
+  }
+
+  const backScanSummary = {
+    totalScanned,
+    matchedRecruiterEmails,
+    cardsUpdated,
+    timeframeDescription,
+    dryRun,
+    dateRange: {
+      from: sinceDate.toISOString(),
+      to: (beforeDate || now).toISOString(),
+    },
+    errors,
+  };
+
+  emailSettings.lastGlobalSync = new Date().toISOString();
+  emailSettings.lastBackScanSummary = backScanSummary;
+  emailSettings.logs = deduplicateEmailLogs(generatedLogs, emailSettings.logs || []);
+  saveUserEmailSettings(userId, emailSettings);
+
+  const durationMs = Date.now() - startTime;
+  addSystemLog("email", "info", `Historical Back-Scan finished in ${durationMs}ms: Scanned ${totalScanned} messages, matched ${matchedRecruiterEmails} recruiter emails, updated ${cardsUpdated} cards.`, {
+    timeframeDescription,
+    dryRun,
+    errors,
+  });
+
+  res.json({
+    summary: backScanSummary,
+    emailSettings,
+    applications,
+  });
+});
+
+// Quick regular check (scans past 7 days)
+app.post("/api/emails/sync", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const emailSettings = getUserEmailSettings(userId);
+  const applications = getUserTracker(userId);
+
+  const connectedAccounts = (emailSettings.accounts || []).filter((a: any) => a.password && a.password.length > 0);
+
+  if (connectedAccounts.length === 0) {
+    return res.json({
+      message: "No email accounts with configured passwords. Configure your App Password in Settings.",
+      emailSettings,
+      applications,
+    });
+  }
+
+  // Quick scan past 7 days
+  const sinceDate = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  let totalNewLogs = 0;
+  let cardsMoved = 0;
+  const newLogs: any[] = [];
+
+  for (const account of connectedAccounts) {
+    const fetchRes = await fetchHistoricalEmails(account, { sinceDate, maxResults: 50 });
+    if (!fetchRes.success) continue;
+
+    const trackedList = applications.map((a) => ({
+      id: a.id,
+      company: a.company,
+      role: a.role,
+      status: a.status,
+    }));
+
+    for (const email of fetchRes.emails) {
+      // Check if already logged
+      const alreadyLogged = (emailSettings.logs || []).some((l: any) => l.subject === email.subject && l.fromEmail === email.fromEmail);
+      if (alreadyLogged) continue;
+
+      const classification = classifyRecruiterEmailRuleBased(email, trackedList);
+      if (!classification.isCandidateRelated && classification.outcome === "other") continue;
+
+      const compName = classification.matchedCompany || extractFallbackCompanyFromEmail(email);
+      const cNorm = compName.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      let matchedApp = null;
+      if (classification.matchedApplicationId) {
+        matchedApp = applications.find((a) => a.id === classification.matchedApplicationId);
+      }
+      if (!matchedApp && cNorm.length >= 2) {
+        matchedApp = applications.find((a) => {
+          if (!a.company) return false;
+          const aNorm = a.company.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return aNorm === cNorm;
+        });
+      }
+
+      let targetStatus: "scraped" | "tailored" | "applied" | "active" | "closed" = "applied";
+      if (classification.outcome === "offer" || classification.outcome === "interview" || classification.outcome === "assessment") {
+        targetStatus = "active";
+      } else if (classification.outcome === "rejection") {
+        targetStatus = "closed";
+      } else if (classification.outcome === "acknowledgement") {
+        targetStatus = "applied";
+      }
+
+      let actionTaken: "created_card" | "moved_kanban" | "synced_feedback" | "logged_only" | "no_match" = "no_match";
+      let previousStatus = undefined;
+      const emailDateFormatted = email.date ? new Date(email.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+
+      if (matchedApp) {
+        previousStatus = matchedApp.status;
+        const statusChanged = matchedApp.status !== targetStatus;
+        if (emailSettings.autoMoveKanban && emailSettings.enabled) {
+          if (statusChanged) {
+            matchedApp.status = targetStatus;
+          }
+          matchedApp.email_synced_at = new Date().toISOString();
+          matchedApp.last_email_feedback = `[${classification.outcome.toUpperCase()}] ${email.subject}`;
+          if (!matchedApp.date_applied) {
+            matchedApp.date_applied = emailDateFormatted;
+          }
+          actionTaken = statusChanged ? "moved_kanban" : "synced_feedback";
+          cardsMoved++;
+        } else {
+          actionTaken = "logged_only";
+        }
+      } else {
+        if (emailSettings.enabled) {
+          const newApp = {
+            id: `app_auto_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+            company: compName,
+            role: classification.role || "Applied Position",
+            status: targetStatus,
+            source: email.fromEmail.includes("linkedin") ? "LinkedIn Easy Apply" : "Email Confirmation",
+            date_scraped: emailDateFormatted,
+            date_applied: emailDateFormatted,
+            notes: `⚡ Auto-detected & created from application email: "${email.subject}" (${new Date(email.date).toLocaleDateString()})`,
+            last_email_feedback: `[${classification.outcome.toUpperCase()}] ${email.subject}`,
+            email_synced_at: new Date().toISOString(),
+          };
+          applications.unshift(newApp);
+          matchedApp = newApp;
+          actionTaken = "created_card";
+          cardsMoved++;
+
+          trackedList.push({
+            id: newApp.id,
+            company: newApp.company,
+            role: newApp.role,
+            status: newApp.status,
+          });
+        } else {
+          actionTaken = "logged_only";
+        }
+      }
+
+      const logItem = {
+        id: `log_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
+        accountId: account.id,
+        accountEmail: account.email,
+        fromEmail: email.fromEmail,
+        fromName: email.fromName,
+        subject: email.subject,
+        date: email.date,
+        snippet: email.snippet,
+        matchedApplicationId: matchedApp?.id,
+        company: classification.matchedCompany || matchedApp?.company || "Recruiter",
+        role: classification.role || matchedApp?.role || "Position",
+        detectedOutcome: classification.outcome,
+        previousStatus,
+        newStatus: targetStatus,
+        aiConfidence: classification.confidence,
+        analysisExplanation: classification.explanation,
+        processedAt: new Date().toISOString(),
+        actionTaken,
+      };
+
+      newLogs.unshift(logItem);
+      totalNewLogs++;
+    }
+
+    account.lastSync = new Date().toISOString();
+  }
+
+  saveUserTracker(userId, applications);
+
+  emailSettings.lastGlobalSync = new Date().toISOString();
+  emailSettings.logs = deduplicateEmailLogs(newLogs, emailSettings.logs || []);
+  saveUserEmailSettings(userId, emailSettings);
+
+  res.json({
+    message: `Sync completed. Found ${totalNewLogs} recruiter updates, updated ${cardsMoved} Kanban cards.`,
+    emailSettings,
+    applications,
+  });
 });
 
 // ==========================================

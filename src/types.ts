@@ -208,6 +208,7 @@ export interface LanguageOption {
 export type ThemeMode = "dark" | "light";
 
 export type ThemePreset =
+  | "google-ai-studio"
   | "zinc-dark"
   | "slate-light"
   | "obsidian-dark"
@@ -242,4 +243,110 @@ export interface ApplicationRecord {
   notes?: string;
   gaps?: GapAnalysis;
   pass_data?: PipelineResults;
+  email_synced_at?: string;
+  last_email_feedback?: string;
 }
+
+export type EmailProviderType = "gmail_oauth" | "imap" | "forwarding" | "simulated";
+
+export interface EmailAccountConfig {
+  id: string;
+  email: string;
+  label: string;
+  provider: EmailProviderType;
+  status: "connected" | "disconnected" | "syncing" | "error";
+  lastSync?: string;
+  imapHost?: string;
+  imapPort?: number;
+  username?: string;
+  password?: string;
+  hasPassword?: boolean;
+}
+
+export type DetectedEmailOutcome =
+  | "interview"
+  | "assessment"
+  | "rejection"
+  | "acknowledgement"
+  | "offer"
+  | "other";
+
+export interface EmailFeedbackLog {
+  id: string;
+  accountId: string;
+  accountEmail: string;
+  fromEmail: string;
+  fromName: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  matchedApplicationId?: string;
+  company: string;
+  role: string;
+  detectedOutcome: DetectedEmailOutcome;
+  previousStatus?: ApplicationStatus;
+  newStatus: ApplicationStatus;
+  aiConfidence: number;
+  analysisExplanation: string;
+  processedAt: string;
+  actionTaken: "created_card" | "moved_kanban" | "synced_feedback" | "logged_only" | "no_match";
+}
+
+export type BackScanTimeframe = "7d" | "30d" | "90d" | "180d" | "365d" | "custom";
+
+export interface BackScanRequest {
+  accountId?: string;
+  timeframe: BackScanTimeframe;
+  startDate?: string;
+  endDate?: string;
+  autoMoveKanban?: boolean;
+  dryRun?: boolean;
+  maxResults?: number;
+}
+
+export interface BackScanSummary {
+  totalScanned: number;
+  matchedRecruiterEmails: number;
+  cardsUpdated: number;
+  timeframeDescription: string;
+  dryRun: boolean;
+  dateRange: { from: string; to: string };
+  errors: string[];
+}
+
+export interface EmailSettingsData {
+  enabled: boolean;
+  autoMoveKanban: boolean;
+  syncIntervalMinutes: number;
+  accounts: EmailAccountConfig[];
+  logs: EmailFeedbackLog[];
+  lastGlobalSync?: string;
+  lastBackScanSummary?: BackScanSummary;
+}
+
+export interface SystemLogEntry {
+  id: string;
+  timestamp: string;
+  source: "pipeline" | "scraper" | "latex" | "auth" | "email" | "system";
+  level: "info" | "warn" | "error";
+  message: string;
+  username?: string;
+  durationMs?: number;
+  details?: Record<string, any>;
+}
+
+export interface SystemDiagnostics {
+  uptimeSeconds: number;
+  memoryUsageMb: {
+    rss: number;
+    heapTotal: number;
+    heapUsed: number;
+    external: number;
+  };
+  totalUsers: number;
+  totalApplications: number;
+  nodeVersion: string;
+  environment: string;
+}
+
+

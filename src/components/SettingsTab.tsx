@@ -23,9 +23,18 @@ interface SettingsTabProps {
   onSettingsSaved: (newModel: string, newProvider: string) => void;
   currentTheme?: ThemePreset;
   onThemeChange?: (theme: ThemePreset) => void;
+  isAdmin?: boolean;
+  onOpenAdminModal?: () => void;
 }
 
-export function SettingsTab({ token, onSettingsSaved, currentTheme = "zinc-dark", onThemeChange }: SettingsTabProps) {
+export function SettingsTab({
+  token,
+  onSettingsSaved,
+  currentTheme = "zinc-dark",
+  onThemeChange,
+  isAdmin,
+  onOpenAdminModal,
+}: SettingsTabProps) {
   const [settings, setSettings] = useState<AppSettingsData | null>(null);
   const [provider, setProvider] = useState<AIProvider>("gemini");
   const [selectedModel, setSelectedModel] = useState<string>("gemini-3.6-flash");
@@ -234,11 +243,11 @@ export function SettingsTab({ token, onSettingsSaved, currentTheme = "zinc-dark"
                 <SettingsIcon className="w-4 h-4" />
               </span>
               <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">
-                Settings & Universal AI Engine
+                Settings & AI Configuration
               </h1>
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-              Configure your preferred LLM provider (Google Gemini, NVIDIA NIM Open APIs, Groq, Ollama) and visual workspace palettes.
+              Configure your preferred LLM provider (Google Gemini, NVIDIA NIM, Groq, Ollama) and workspace preferences.
             </p>
           </div>
           <div className="flex items-center gap-2 bg-[var(--background)] border border-[var(--border)] px-3 py-1.5 rounded-xl text-xs text-[var(--text-secondary)]">
@@ -599,6 +608,36 @@ export function SettingsTab({ token, onSettingsSaved, currentTheme = "zinc-dark"
           </div>
         </form>
       </div>
+
+      {/* Administrator & Debug Logs Quick Access (Only for Admin) */}
+      {isAdmin && onOpenAdminModal && (
+        <div className="bg-[#1e1f20] border border-amber-500/30 rounded-2xl p-6 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <ShieldCheck className="w-4 h-4" />
+                </span>
+                <h3 className="text-sm font-semibold text-[#f2f2f2]">
+                  Administrator Console & Hidden System Logs
+                </h3>
+              </div>
+              <p className="text-xs text-[#8e918f]">
+                Inspect real-time system event logs, manage homelab accounts, and view server performance metrics.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onOpenAdminModal}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#131314] text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap self-start sm:self-auto"
+            >
+              <Server className="w-3.5 h-3.5" />
+              <span>Open Admin & Logs Console</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

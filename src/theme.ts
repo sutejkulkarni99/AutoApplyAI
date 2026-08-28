@@ -2,6 +2,15 @@ import { ThemePreset, ThemeConfig } from "./types";
 
 export const THEME_CONFIGS: ThemeConfig[] = [
   {
+    id: "google-ai-studio" as any,
+    name: "Google AI Studio",
+    mode: "dark",
+    description: "Authentic Google AI Studio dark workspace with multi-color sparkle accents, high contrast typography, and obsidian panels.",
+    previewBg: "#131314",
+    previewCard: "#1e1f20",
+    previewAccent: "#8ab4f8",
+  },
+  {
     id: "zinc-dark",
     name: "Zinc Graphite Pro",
     mode: "dark",
@@ -42,19 +51,12 @@ export const THEME_CONFIGS: ThemeConfig[] = [
 const THEME_STORAGE_KEY = "autoapply_theme_preset";
 
 export function getStoredTheme(): ThemePreset {
-  if (typeof window === "undefined") return "zinc-dark";
+  if (typeof window === "undefined") return "google-ai-studio" as any;
   const stored = localStorage.getItem(THEME_STORAGE_KEY) as ThemePreset | null;
   if (stored && THEME_CONFIGS.some((t) => t.id === stored)) {
     return stored;
   }
-  // Migration fallback
-  if (stored === "vscode-slate" || stored === "obsidian" || stored === "nordic-frost" || stored === "tokyo-storm") {
-    return "zinc-dark";
-  }
-  if (stored === "clean-studio") {
-    return "slate-light";
-  }
-  return "zinc-dark";
+  return "google-ai-studio" as any;
 }
 
 export function applyTheme(themeId: ThemePreset) {
